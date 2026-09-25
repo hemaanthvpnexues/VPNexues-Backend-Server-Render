@@ -1,0 +1,123 @@
+package com.vpnexues.svc.controller;
+
+import com.vpnexues.svc.dto.OtpSendRequest;
+import com.vpnexues.svc.dto.OtpVerifyRequest;
+import com.vpnexues.svc.dto.UserDto;
+import com.vpnexues.svc.entity.User;
+import com.vpnexues.svc.security.CookieNames;
+import com.vpnexues.svc.security.CookieUtil;
+import com.vpnexues.svc.security.JwtService;
+import com.vpnexues.svc.exception.NotFoundException;
+import com.vpnexues.svc.repository.UserRepository;
+import com.vpnexues.svc.service.CartService;
+import com.vpnexues.svc.service.CustomerAuthService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
+import java.time.Duration;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequiredArgsConstructor
+public class AuthController {
+
+    private final CustomerAuthService customerAuthService;
+    private final CartService cartService;
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
+
+    @Value("${app.cookie.secure:false}")
+    private boolean secureCookies;
+
+    /**
+     * Sends OTP via backend (stub provider). Firebase Auth on the client handles
+     * phone OTP directly — this endpoint is kept for legacy/fallback use.
+     */
+    @PostMapping("/api/auth/otp/send")
+    public ResponseEntity<Void> sendOtp(@RequestBody @Valid OtpSendRequest req) {
+        customerAuthService.sendOtp(req.phone());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Verifies OTP. Supports two modes:
+     * 1. Firebase mode: client sends firebaseUid + accessToken (Firebase ID token) — backend
+     *    verifies the token and finds/creates user by Firebase UID
+     * 2. Legacy mode: client sends phone + code — backend verifies via stub OTP provider
+     */
+    @PostMapping("/api/auth/otp/verify")
+    public UserDto verifyOtp(
+            @RequestBody @Valid OtpVerifyRequest req, HttpServletRequest request, HttpServletResponse response) {
+
+        User user;
+
+        if (req.firebaseUid() != null && req.accessToken() != null) {
+            // Server-side check: Firebase ID token must be valid for this project
+            var claims = jwtService.parseFirebaseToken(req.accessToken());
+            if (claims == null || !req.firebaseUid().equals(claims.getSubject())) {
+                throw new com.vpnexues.svc.exception.BadRequestException("Invalid Firebase session");
+            }
+            user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name());
+        } else {
+            // Legacy mode: verify OTP via backend provider
+            user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name());
+        }
+
+        // Merge guest cart into user cart
+        String guestToken = CookieUtil.read(request, CookieNames.GUEST_CART_TOKEN);
+        cartService.mergeGuestCartIntoUser(guestToken, user.getId());
+        clearCookie(response, CookieNames.GUEST_CART_TOKEN);
+
+        // Issue backend JWT
+        String jwt = jwtService.generateToken(user.getId(), JwtService.TOKEN_TYPE_CUSTOMER);
+        setAuthCookie(response, jwt);
+
+        return UserDto.of(user);
+    }
+
+    @GetMapping("/api/auth/me")
+    public UserDto me(@AuthenticationPrincipal UUID userId) {
+        User user = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
+        return UserDto.of(user);
+    }
+
+    @PostMapping("/api/auth/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response) {
+        clearCookie(response, CookieNames.CUSTOMER_ACCESS_TOKEN);
+        return ResponseEntity.noContent().build();
+    }
+
+    private void setAuthCookie(HttpServletResponse response, String jwt) {
+        ResponseCookie cookie = ResponseCookie.from(CookieNames.CUSTOMER_ACCESS_TOKEN, jwt)
+                .httpOnly(true)
+                .secure(secureCookies)
+                // Cross-site (site on GoDaddy → API on Render) requires None+Secure;
+                // local HTTP keeps Lax.
+                .sameSite(secureCookies ? "None" : "Lax")
+                .path("/")
+                .maxAge(Duration.ofSeconds(jwtService.accessTokenTtlSeconds()))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearCookie(HttpServletResponse response, String name) {
+        ResponseCookie cookie = ResponseCookie.from(name, "")
+                .httpOnly(true)
+                .secure(secureCookies)
+                .sameSite(secureCookies ? "None" : "Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+}

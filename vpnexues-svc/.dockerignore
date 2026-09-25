@@ -1,0 +1,16 @@
+# Keep Docker context small — place with Dockerfile as vpnexues-svc/.dockerignore
+.gradle/
+build/
+bin/
+.idea/
+.vscode/
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+*.zip
+.claude/
+start-backend.ps1
+VPNEXUES_SVC.md
+HELP.md

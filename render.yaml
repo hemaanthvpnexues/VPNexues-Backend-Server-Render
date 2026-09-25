@@ -1,0 +1,77 @@
+# Render Blueprint — VPNexues backend (vpnexues-svc)
+# Place this file at the REPO ROOT: vpnreactsource/render.yaml
+# (Render Blueprints pick it up from the repository root.)
+services:
+  - type: web
+    name: vpnexues-api
+    runtime: java
+    region: singapore          # closest to Supabase Mumbai + India users
+    rootDir: vpnexues-svc      # Gradle project lives here (not repo root)
+    plan: free                 # upgrade to starter when demos need always-on
+
+    buildCommand: ./gradlew bootJar --no-daemon
+    startCommand: java -jar build/libs/vpnexues-svc-0.0.1-SNAPSHOT.jar
+
+    healthCheckPath: /api/health
+    # Free tier: first request after idle can take ~30–50s (cold start).
+
+    envVars:
+      # --- Runtime (Render injects PORT; app must read it) ---
+      - key: JAVA_VERSION
+        value: "17"
+
+      # --- Database (Supabase PostgreSQL) ---
+      # Prefer Session mode host (port 5432) on Render — long-running JVM.
+      # Do NOT commit real secrets — set Secret File or dashboard values instead.
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # --- Auth ---
+      - key: JWT_SECRET
+        sync: false
+
+      # --- CORS: exact frontend origins (comma-separated, no spaces issues) ---
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://tesing.vpnexues.com,http://tesing.vpnexues.com
+
+      # --- Cookies over HTTPS ---
+      - key: COOKIE_SECURE
+        value: "true"
+
+      # --- OTP ---
+      - key: OTP_PROVIDER
+        value: stub
+
+      # --- Firebase ---
+      - key: FIREBASE_PROJECT_ID
+        value: vpnexues-otp-and-img-s
+
+      # --- Supabase (optional helpers used by some services) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        sync: false
+
+      # --- SMTP (optional; leave blank to skip mail) ---
+      - key: SMTP_HOST
+        value: ""
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+
+      # --- First SUPER_ADMIN once (clear after first successful boot) ---
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        sync: false
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false

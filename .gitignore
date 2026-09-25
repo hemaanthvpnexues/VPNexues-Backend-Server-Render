@@ -1,0 +1,15 @@
+.env
+**/.env
+**/.env.local
+**/.env.production
+node_modules/
+**/node_modules/
+build/
+**/build/
+.gradle/
+**/.gradle/
+*.log
+.DS_Store
+*.jwt_for_render.txt
+.jwt_for_render.txt
+vpnexues-ui-dist-cpanel.zip

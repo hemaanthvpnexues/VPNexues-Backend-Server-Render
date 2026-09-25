@@ -1,0 +1,68 @@
+spring:
+  application:
+    name: vpnexues-svc
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/vpnexues_db}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # Flyway (see config/FlywayConfig.java — Boot 4.1 ships no Flyway
+      # autoconfiguration, so it's wired manually there) owns the schema.
+      # This only checks entities still match it — never create/update here.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+server:
+  # Render/Docker inject PORT (e.g. 10000). Local/Gradle bootRun keeps SERVER_PORT or 8080.
+  port: ${PORT:${SERVER_PORT:8080}}
+
+supabase:
+  url: ${SUPABASE_URL:}
+  anon-key: ${SUPABASE_ANON_KEY:}
+  secret-key: ${SUPABASE_SECRET_KEY:}
+  jwks-url: ${SUPABASE_JWKS_URL:}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-ttl-minutes: ${JWT_ACCESS_TTL_MIN:30}
+    refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:14}
+  cors:
+    # Comma-separated exact origins. Production must include the live site.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://tesing.vpnexues.com,http://tesing.vpnexues.com}
+  otp:
+    provider: stub
+  firebase:
+    project-id: ${FIREBASE_PROJECT_ID:vpnexues-otp-and-img-s}
+  admin:
+    # First SUPER_ADMIN, created once on startup if admin_users is empty (see
+    # AdminBootstrapRunner). Leave unset after the first successful boot.
+    bootstrap-email: ${ADMIN_BOOTSTRAP_EMAIL:}
+    bootstrap-password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+  cookie:
+    # Secure cookies require HTTPS — keep false for local http://localhost dev,
+    # set true (via COOKIE_SECURE=true) once served over real HTTPS.
+    secure: ${COOKIE_SECURE:false}

@@ -1,0 +1,90 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.1.0'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.vpnexues'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+ext {
+	jjwtVersion = '0.12.6'
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	implementation 'org.springframework.boot:spring-boot-starter-security'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
+	// 3.x line targets Spring Boot 4 / Spring Framework 7 — the 2.x line is Boot-3-only, do not downgrade.
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0'
+	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+	// Supabase JWT verification via JWKS
+	implementation 'com.nimbusds:nimbus-jose-jwt:10.9.1'
+	// Caffeine cache for brute-force tracking (single-instance dev/deployment)
+	implementation 'com.github.ben-manes.caffeine:caffeine'
+	compileOnly 'org.projectlombok:lombok'
+	runtimeOnly 'org.postgresql:postgresql'
+	annotationProcessor 'org.projectlombok:lombok'
+	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-mail-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testCompileOnly 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+}
+
+// Loads .env into a map, skipping keys already set in the real environment
+// (CI should set those directly — this never overrides them). No-op if
+// .env doesn't exist.
+def loadDotEnv = {
+	def envVars = [:]
+	def envFile = file('.env')
+	if (envFile.exists()) {
+		envFile.readLines().each { line ->
+			line = line.trim()
+			if (line && !line.startsWith('#') && line.contains('=')) {
+				def idx = line.indexOf('=')
+				def key = line.substring(0, idx).trim()
+				def value = line.substring(idx + 1).trim()
+				if (System.getenv(key) == null) {
+					envVars[key] = value
+				}
+			}
+		}
+	}
+	envVars
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+
+	// Local dev/IDE test runs need the same DB/JWT config bootRun gets.
+	// Load .env here so `./gradlew test` (and IDE runs delegated to Gradle)
+	// work without manually sourcing it first.
+	environment loadDotEnv()
+}
+
+tasks.named('bootRun') {
+	// Same as the test task above: load .env so `./gradlew bootRun` works
+	// without manually sourcing it first (and works from PowerShell, where
+	// `set -a && source .env` isn't valid anyway).
+	environment loadDotEnv()
+}

@@ -1,0 +1,15 @@
+package com.vpnexues.svc.dto;
+
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
+public record UpdateTestimonialRequest(
+        @NotBlank String name,
+        String role,
+        String location,
+        @Min(1) @Max(5) int rating,
+        @NotBlank String quote,
+        String photoUrl,
+        boolean active) {
+}
