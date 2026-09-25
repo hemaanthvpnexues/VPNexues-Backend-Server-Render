@@ -80,7 +80,7 @@ public class OrderService {
         BigDecimal discount = BigDecimal.ZERO;
         String appliedCouponCode = null;
         if (req.couponCode() != null && !req.couponCode().isBlank()) {
-            CouponApplyResponse couponResult = couponService.apply(req.couponCode(), itemTotal);
+            CouponApplyResponse couponResult = couponService.apply(req.couponCode(), itemTotal, userId);
             if (!couponResult.valid()) {
                 throw new BadRequestException(couponResult.message());
             }

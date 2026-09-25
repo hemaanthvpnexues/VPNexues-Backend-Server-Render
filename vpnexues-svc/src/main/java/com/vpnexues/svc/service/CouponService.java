@@ -4,9 +4,11 @@ import com.vpnexues.svc.dto.CouponApplyResponse;
 import com.vpnexues.svc.entity.Coupon;
 import com.vpnexues.svc.entity.CouponType;
 import com.vpnexues.svc.repository.CouponRepository;
+import com.vpnexues.svc.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,9 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CouponService {
 
-    private final CouponRepository couponRepository;
+    /** First-order-only codes: rejected when the customer already has any past order. */
+    private static final String FIRST_ORDER_CODE = "FIRST200";
 
-    public CouponApplyResponse apply(String code, BigDecimal itemTotal) {
+    private final CouponRepository couponRepository;
+    private final OrderRepository orderRepository;
+
+    /**
+     * @param userId authenticated customer, or null for a guest preview (guests are
+     *               re-checked at checkout once signed in)
+     */
+    public CouponApplyResponse apply(String code, BigDecimal itemTotal, UUID userId) {
         Coupon coupon = couponRepository.findByCodeIgnoreCaseAndActiveTrue(code).orElse(null);
         if (coupon == null) {
             return new CouponApplyResponse(false, code, BigDecimal.ZERO, "Invalid or expired coupon code");
@@ -31,7 +41,16 @@ public class CouponService {
                     false,
                     code,
                     BigDecimal.ZERO,
-                    "Minimum order value of " + coupon.getMinOrderValue() + " required for this coupon");
+                    "You are not eligible for this coupon code");
+        }
+        if (FIRST_ORDER_CODE.equalsIgnoreCase(coupon.getCode())
+                && userId != null
+                && orderRepository.countByUserId(userId) > 0) {
+            return new CouponApplyResponse(
+                    false,
+                    code,
+                    BigDecimal.ZERO,
+                    "You are not eligible for this coupon code");
         }
 
         BigDecimal discount = coupon.getType() == CouponType.PERCENT

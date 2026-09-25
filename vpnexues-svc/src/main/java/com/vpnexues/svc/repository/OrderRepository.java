@@ -16,6 +16,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
 
     boolean existsByOrderNumber(String orderNumber);
 
+    /** First-time-only coupons (e.g. FIRST200) need a prior-order check. */
+    long countByUserId(UUID userId);
+
     /** Per-user order aggregates for the admin Customers view (computed, not a stored table). */
     @Query("""
             SELECT o.user.id AS userId,

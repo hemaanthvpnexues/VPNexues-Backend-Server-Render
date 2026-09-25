@@ -32,6 +32,6 @@ public class CouponController {
             HttpServletResponse response) {
         CartOwner owner = cartOwnerResolver.resolve(request, response);
         var cart = cartService.getCart(owner, country);
-        return couponService.apply(req.code(), cart.itemTotal());
+        return couponService.apply(req.code(), cart.itemTotal(), owner.userId());
     }
 }
