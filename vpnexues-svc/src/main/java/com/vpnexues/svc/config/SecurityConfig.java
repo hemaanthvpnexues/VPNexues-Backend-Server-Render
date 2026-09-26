@@ -4,7 +4,7 @@ import com.vpnexues.svc.repository.AdminUserRepository;
 import com.vpnexues.svc.security.AdminJwtAuthFilter;
 import com.vpnexues.svc.security.CustomerJwtAuthFilter;
 import com.vpnexues.svc.security.JwtService;
-import com.vpnexues.svc.repository.AdminUserRepository;
+import com.vpnexues.svc.security.RestAuthenticationEntryPoint;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .permitAll()
                         .anyRequest()
                         .authenticated())
+                // No session yet => 401 (Authentication required), not 403.
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .addFilterBefore(new AdminJwtAuthFilter(jwtService, adminUserRepository), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -82,6 +84,8 @@ public class SecurityConfig {
                         .permitAll()
                         .anyRequest()
                         .authenticated())
+                // No session yet => 401 (Authentication required), not 403.
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .addFilterBefore(
                         new CustomerJwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 
