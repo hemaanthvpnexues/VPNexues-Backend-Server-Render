@@ -48,6 +48,10 @@ public class SecurityConfig {
                         .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
                 .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.POST, "/api/admin/auth/login")
                         .permitAll()
+                        // Session probe: anonymous callers get 200 + a JSON null body
+                        // (see AdminAuthController#me) instead of a scary 401 in the console.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/auth/me")
+                        .permitAll()
                         .anyRequest()
                         .authenticated())
                 // No session yet => 401 (Authentication required), not 403.

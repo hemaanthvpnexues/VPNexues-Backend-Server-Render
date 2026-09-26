@@ -1,5 +1,6 @@
 package com.vpnexues.svc.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vpnexues.svc.dto.AdminLoginRequest;
 import com.vpnexues.svc.dto.AdminSessionDto;
 import com.vpnexues.svc.dto.ChangePasswordRequest;
@@ -17,6 +18,7 @@ import com.vpnexues.svc.service.LoginAttemptService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -42,6 +44,7 @@ public class AdminAuthController {
     private final LoginAttemptService loginAttemptService;
     private final AdminAuditService auditService;
     private final AdminSessionService sessionService;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.cookie.secure:false}")
     private boolean secureCookies;
@@ -111,11 +114,24 @@ public class AdminAuthController {
         return toDto(admin);
     }
 
+    /**
+     * Session probe called by the admin SPA on page load — including on the public
+     * homepage for visitors who are simply not signed in. "No session" is an answer,
+     * not an error, so this returns 200 with a JSON {@code null} body to keep the
+     * browser console clean. Every other /api/admin/** endpoint still returns 401
+     * without a session, and a real authorization failure still returns 403.
+     */
     @GetMapping("/api/admin/auth/me")
-    public AdminSessionDto me(@AuthenticationPrincipal UUID adminId) {
+    public void me(@AuthenticationPrincipal UUID adminId, HttpServletResponse response) throws IOException {
+        response.setContentType("application/json;charset=UTF-8");
+        if (adminId == null) {
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.getWriter().write("null");
+            return;
+        }
         AdminUser admin =
                 adminUserRepository.findById(adminId).orElseThrow(() -> new NotFoundException("Admin not found"));
-        return toDto(admin);
+        response.getWriter().write(objectMapper.writeValueAsString(toDto(admin)));
     }
 
     @PostMapping("/api/admin/auth/refresh")
