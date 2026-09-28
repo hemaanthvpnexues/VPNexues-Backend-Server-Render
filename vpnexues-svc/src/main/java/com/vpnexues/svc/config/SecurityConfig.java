@@ -108,6 +108,10 @@ public class SecurityConfig {
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN", "X-Requested-With"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(List.of("Set-Cookie"));
+        // Browser preflight (OPTIONS) has no cache header by default, so every cart POST re-negotiates CORS.
+        // On a cold-ish Render instance that preflight alone measured ~2.5s and the client's 15s timeout
+        // counts it - let the browser reuse it for an hour.
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

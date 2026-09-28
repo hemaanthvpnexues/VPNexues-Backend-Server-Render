@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,8 +37,15 @@ public class CartService {
     private final UserRepository userRepository;
     private final ProductService productService;
     private final PricingService pricingService;
+    private final EntityManager entityManager;
 
     public Cart getOrCreateCart(CartOwner owner) {
+        // Serialize cart CREATION for this owner. The cart row cannot be row-locked yet (it may not exist),
+        // so N simultaneous first-ever requests used to all INSERT the same user_id / guest_token and all but
+        // one died on unique constraint "carts_*_key" -> 500 -> the item silently vanished on the client.
+        // A transaction-scoped advisory lock makes the losers wait, then see the winner's row and reuse it.
+        // Released automatically on commit/rollback; re-entrant within the same transaction.
+        lockOwner(owner);
         if (owner.isUser()) {
             return cartRepository.findByUserId(owner.userId()).orElseGet(() -> {
                 User user = userRepository
@@ -55,12 +63,44 @@ public class CartService {
         });
     }
 
+    /**
+     * Takes a transaction-scoped Postgres advisory lock keyed on the cart owner (user id or guest token).
+     * Must be called inside an active transaction - the lock is released when that transaction ends.
+     */
+    private void lockOwner(CartOwner owner) {
+        String key = owner.isUser() ? "cart:user:" + owner.userId() : "cart:guest:" + owner.guestToken();
+        // 32-bit hash widened to bigint; only needs to be stable, not collision-free (a collision just
+        // serializes two unrelated carts for the duration of one transaction).
+        entityManager
+                .createNativeQuery("select pg_advisory_xact_lock(cast(:k as bigint))")
+                .setParameter("k", (long) key.hashCode())
+                .getSingleResult();
+    }
+
     public CartDto getCart(CartOwner owner, String countryCode) {
         return toDto(getOrCreateCart(owner));
     }
 
+    /**
+     * Loads the owner's cart with a row-level {@code SELECT ... FOR UPDATE} lock held for the rest of this
+     * transaction, so concurrent mutations serialize instead of overwriting each other.
+     *
+     * <p>Brand-new carts need no lock - nothing else can be reading them yet, and the unique constraint on
+     * user_id / guest_token is what protects the create path.
+     */
+    private Cart lockCart(CartOwner owner) {
+        if (owner.isUser()) {
+            return cartRepository
+                    .findByUserIdForUpdate(owner.userId())
+                    .orElseGet(() -> getOrCreateCart(owner));
+        }
+        return cartRepository
+                .findByGuestTokenForUpdate(owner.guestToken())
+                .orElseGet(() -> getOrCreateCart(owner));
+    }
+
     public CartDto addItem(CartOwner owner, UUID productId, int qty, String countryCode) {
-        Cart cart = getOrCreateCart(owner);
+        Cart cart = lockCart(owner);
         Product product = productService.getEntityById(productId);
         PricingService.ResolvedPrice price = pricingService.resolve(product, countryCode);
 
@@ -95,7 +135,7 @@ public class CartService {
         if (!VALID_BOX_TYPES.contains(boxType)) {
             throw new BadRequestException("Invalid boxType: " + boxType);
         }
-        Cart cart = getOrCreateCart(owner);
+        Cart cart = lockCart(owner);
         Product product = productService.getEntityById(productId);
         PricingService.ResolvedPrice price = pricingService.resolve(product, countryCode);
 
@@ -152,7 +192,7 @@ public class CartService {
     }
 
     public CartDto updateItemQty(CartOwner owner, UUID itemId, int qty, BigDecimal weightKg) {
-        Cart cart = getOrCreateCart(owner);
+        Cart cart = lockCart(owner);
         CartItem item = cartItemRepository
                 .findByIdAndCartId(itemId, cart.getId())
                 .orElseThrow(() -> new NotFoundException("Cart item not found: " + itemId));
@@ -168,7 +208,7 @@ public class CartService {
     }
 
     public CartDto removeItem(CartOwner owner, UUID itemId) {
-        Cart cart = getOrCreateCart(owner);
+        Cart cart = lockCart(owner);
         CartItem item = cartItemRepository
                 .findByIdAndCartId(itemId, cart.getId())
                 .orElseThrow(() -> new NotFoundException("Cart item not found: " + itemId));
@@ -177,7 +217,7 @@ public class CartService {
     }
 
     public CartDto clear(CartOwner owner) {
-        Cart cart = getOrCreateCart(owner);
+        Cart cart = lockCart(owner);
         cart.getItems().clear();
         return toDto(cartRepository.save(cart));
     }
@@ -187,8 +227,8 @@ public class CartService {
         if (guestToken == null) {
             return;
         }
-        cartRepository.findByGuestToken(guestToken).ifPresent(guestCart -> {
-            Cart userCart = getOrCreateCart(CartOwner.ofUser(userId));
+        cartRepository.findByGuestTokenForUpdate(guestToken).ifPresent(guestCart -> {
+            Cart userCart = lockCart(CartOwner.ofUser(userId));
             for (CartItem guestItem : guestCart.getItems()) {
                 CartItem existing = userCart.getItems().stream()
                         .filter(i -> guestItem.getProduct() != null
