@@ -5,10 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CreateContactMessageRequest(
-        @NotBlank @Size(max = 100) String name,
+        @NotBlank @Size(max = 255) String name,
         @NotBlank @Email @Size(max = 255) String email,
-        @Size(max = 30) String phone,
+        @Size(max = 20) String phone,
         @Size(max = 4) String countryCode,
-        @NotBlank @Size(max = 200) String subject,
-        @NotBlank @Size(max = 5000) String message) {
+        @NotBlank @Size(max = 255) String subject,
+        @NotBlank @Size(max = 10000) String message) {
 }
