@@ -1,6 +1,7 @@
 package com.vpnexues.svc.config;
 
 import com.vpnexues.svc.repository.AdminUserRepository;
+import com.vpnexues.svc.repository.UserRepository;
 import com.vpnexues.svc.security.AdminJwtAuthFilter;
 import com.vpnexues.svc.security.CustomerJwtAuthFilter;
 import com.vpnexues.svc.security.JwtService;
@@ -38,6 +39,9 @@ public class SecurityConfig {
     @Value("${app.cors.allowed-origins}")
     private String allowedOrigins;
 
+    @Value("${app.cookie.secure:false}")
+    private boolean secureCookies;
+
     @Bean
     @Order(1)
     public SecurityFilterChain adminFilterChain(HttpSecurity http, JwtService jwtService, AdminUserRepository adminUserRepository) throws Exception {
@@ -63,7 +67,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, UserRepository userRepository) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -91,7 +95,8 @@ public class SecurityConfig {
                 // No session yet => 401 (Authentication required), not 403.
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(new RestAuthenticationEntryPoint()))
                 .addFilterBefore(
-                        new CustomerJwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+                        new CustomerJwtAuthFilter(jwtService, userRepository, secureCookies),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

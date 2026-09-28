@@ -49,6 +49,7 @@ public class JwtService {
     private final Key signingKey;
     private final long accessTokenTtlMinutes;
     private final long refreshTokenTtlDays;
+    private final long customerAccessTokenTtlDays;
     private final String supabaseJwksUrl;
     private final String firebaseProjectId;
     private volatile ConfigurableJWTProcessor<SecurityContext> supabaseJwtProcessor;
@@ -61,11 +62,13 @@ public class JwtService {
             @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.access-token-ttl-minutes:30}") long accessTokenTtlMinutes,
             @Value("${app.jwt.refresh-token-ttl-days:14}") long refreshTokenTtlDays,
+            @Value("${app.jwt.customer-access-token-ttl-days:30}") long customerAccessTokenTtlDays,
             @Value("${supabase-jwks-url:}") String supabaseJwksUrl,
             @Value("${app.firebase.project-id:}") String firebaseProjectId) {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenTtlMinutes = accessTokenTtlMinutes;
         this.refreshTokenTtlDays = refreshTokenTtlDays;
+        this.customerAccessTokenTtlDays = customerAccessTokenTtlDays;
         this.supabaseJwksUrl = supabaseJwksUrl;
         this.firebaseProjectId = firebaseProjectId;
     }
@@ -89,6 +92,27 @@ public class JwtService {
 
     public long accessTokenTtlSeconds() {
         return accessTokenTtlMinutes * 60;
+    }
+
+    /**
+     * Customer session token. Deliberately long-lived: shoppers have no refresh-token flow, so the
+     * httpOnly cookie plus this JWT are the only things keeping a customer signed in across reloads.
+     * The old 30-minute admin TTL logged customers out mid-session, which dropped them back onto an
+     * empty guest cart. {@code CustomerJwtAuthFilter} slides this window forward on active use.
+     */
+    public String generateCustomerToken(UUID userId) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(userId.toString())
+                .claim("type", TOKEN_TYPE_CUSTOMER)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(customerAccessTokenTtlSeconds())))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    public long customerAccessTokenTtlSeconds() {
+        return customerAccessTokenTtlDays * 24 * 60 * 60;
     }
 
     public long refreshTokenTtlSeconds() {

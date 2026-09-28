@@ -50,6 +50,10 @@ app:
     secret: ${JWT_SECRET}
     access-token-ttl-minutes: ${JWT_ACCESS_TTL_MIN:30}
     refresh-token-ttl-days: ${JWT_REFRESH_TTL_DAYS:14}
+    # Customer sessions have no refresh-token flow, so the vpx_at cookie + this TTL are what keep a
+    # shopper signed in (and their cart attached to their account) across reloads. Sliding renewal in
+    # CustomerJwtAuthFilter extends it further while the user stays active.
+    customer-access-token-ttl-days: ${CUSTOMER_ACCESS_TTL_DAYS:30}
   cors:
     # Comma-separated exact origins. Production must include the live site.
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://tesing.vpnexues.com,http://tesing.vpnexues.com}

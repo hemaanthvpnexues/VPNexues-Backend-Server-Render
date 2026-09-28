@@ -78,8 +78,8 @@ public class AuthController {
         cartService.mergeGuestCartIntoUser(guestToken, user.getId());
         clearCookie(response, CookieNames.GUEST_CART_TOKEN);
 
-        // Issue backend JWT
-        String jwt = jwtService.generateToken(user.getId(), JwtService.TOKEN_TYPE_CUSTOMER);
+        // Issue backend JWT (long-lived customer session - see JwtService#generateCustomerToken)
+        String jwt = jwtService.generateCustomerToken(user.getId());
         setAuthCookie(response, jwt);
 
         return UserDto.of(user);
@@ -105,7 +105,7 @@ public class AuthController {
                 // local HTTP keeps Lax.
                 .sameSite(secureCookies ? "None" : "Lax")
                 .path("/")
-                .maxAge(Duration.ofSeconds(jwtService.accessTokenTtlSeconds()))
+                .maxAge(Duration.ofSeconds(jwtService.customerAccessTokenTtlSeconds()))
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
