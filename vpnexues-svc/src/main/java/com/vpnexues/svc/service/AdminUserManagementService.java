@@ -7,7 +7,9 @@ import com.vpnexues.svc.entity.AdminRole;
 import com.vpnexues.svc.entity.AdminUser;
 import com.vpnexues.svc.exception.BadRequestException;
 import com.vpnexues.svc.exception.NotFoundException;
+import com.vpnexues.svc.repository.AdminLoginAuditRepository;
 import com.vpnexues.svc.repository.AdminUserRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -25,6 +27,7 @@ public class AdminUserManagementService {
     private final AdminUserRepository adminUserRepository;
     private final PasswordEncoder passwordEncoder;
     private final AdminSessionService sessionService;
+    private final AdminLoginAuditRepository adminLoginAuditRepository;
 
     /** Valid country codes for SUB_ADMIN roles. */
     private static final Set<String> VALID_COUNTRY_CODES = Set.of("IN", "AE", "US", "SG");
@@ -112,6 +115,7 @@ public class AdminUserManagementService {
     }
 
     private AdminUserSummaryDto toDto(AdminUser a) {
-        return new AdminUserSummaryDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode());
+        Instant lastLogin = adminLoginAuditRepository.findLatestSuccessfulLoginByAdminId(a.getId()).orElse(null);
+        return new AdminUserSummaryDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode(), lastLogin);
     }
 }

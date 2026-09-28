@@ -2,12 +2,13 @@ package com.vpnexues.svc.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record CreateContactMessageRequest(
-        @NotBlank String name,
-        @NotBlank @Email String email,
-        String phone,
-        String countryCode,
-        @NotBlank String subject,
-        @NotBlank String message) {
+        @NotBlank @Size(max = 100) String name,
+        @NotBlank @Email @Size(max = 255) String email,
+        @Size(max = 30) String phone,
+        @Size(max = 4) String countryCode,
+        @NotBlank @Size(max = 200) String subject,
+        @NotBlank @Size(max = 5000) String message) {
 }

@@ -1,17 +1,17 @@
 package com.vpnexues.svc.dto;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
-public record ContactMessageDto(
+public record ChatSessionDto(
         UUID id,
-        String name,
-        String email,
-        String phone,
+        String visitorName,
+        String visitorEmail,
         String countryCode,
         String subject,
-        String message,
         String status,
         Instant createdAt,
-        UUID chatSessionId) {
+        Instant closedAt,
+        List<ChatMessageDto> messages) {
 }

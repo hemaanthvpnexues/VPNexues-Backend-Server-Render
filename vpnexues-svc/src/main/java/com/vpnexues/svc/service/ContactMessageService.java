@@ -18,16 +18,26 @@ import org.springframework.transaction.annotation.Transactional;
 public class ContactMessageService {
 
     private final ContactMessageRepository contactMessageRepository;
+    private final ContactFormMailService contactFormMailService;
 
     public ContactMessageDto create(CreateContactMessageRequest req) {
-        ContactMessage message = new ContactMessage();
-        message.setName(req.name());
-        message.setEmail(req.email());
-        message.setPhone(req.phone());
-        message.setCountryCode(req.countryCode());
-        message.setSubject(req.subject());
-        message.setMessage(req.message());
-        return toDto(contactMessageRepository.save(message));
+        String name = req.name().trim();
+        String email = req.email().trim();
+        String phone = req.phone() == null ? null : req.phone().trim();
+        String countryCode = req.countryCode() == null ? null : req.countryCode().trim();
+        String subject = req.subject().trim();
+        String message = req.message().trim();
+        ContactMessage entity = new ContactMessage();
+        entity.setName(name);
+        entity.setEmail(email);
+        entity.setPhone(phone);
+        entity.setCountryCode(countryCode);
+        entity.setSubject(subject);
+        entity.setMessage(message);
+        ContactMessageDto saved = toDto(contactMessageRepository.save(entity));
+        // Fail-open: the message is persisted above; a mail outage must not fail the request.
+        contactFormMailService.sendContactEmail(name, email, phone, subject, message);
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +87,7 @@ public class ContactMessageService {
                 m.getSubject(),
                 m.getMessage(),
                 m.getStatus().name(),
-                m.getCreatedAt());
+                m.getCreatedAt(),
+                m.getChatSessionId());
     }
 }
