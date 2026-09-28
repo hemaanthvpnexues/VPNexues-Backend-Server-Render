@@ -73,10 +73,13 @@ public class AuthController {
             user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name());
         }
 
-        // Merge guest cart into user cart
+        // Merge guest cart into user cart. The vpx_guest cookie is deliberately NOT cleared here:
+        // a "Add to cart" that was still in flight while this login ran can land in the guest cart
+        // after this merge and would then be stranded forever. CartOwnerResolver folds any leftover
+        // guest cart into the user cart on the next authenticated cart call and clears the cookie
+        // there, so late-arriving items are still recovered.
         String guestToken = CookieUtil.read(request, CookieNames.GUEST_CART_TOKEN);
         cartService.mergeGuestCartIntoUser(guestToken, user.getId());
-        clearCookie(response, CookieNames.GUEST_CART_TOKEN);
 
         // Issue backend JWT (long-lived customer session - see JwtService#generateCustomerToken)
         String jwt = jwtService.generateCustomerToken(user.getId());
