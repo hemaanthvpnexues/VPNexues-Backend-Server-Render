@@ -1,0 +1,36 @@
+name: Keep Render awake
+
+# Render suspends the service after a period with no traffic. The next visitor then pays the
+# cold-start cost, and the frontend's 10s axios timeout turns that into
+# "Something went wrong. Please try again." on checkout. Pinging the health endpoint every
+# 10 minutes keeps the instance warm so real requests answer in ~1-3s instead of timing out.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Warm the service
+        run: |
+          set -u
+          URL="https://vpnexues-api.onrender.com/api/health"
+          for i in 1 2 3; do
+            echo "attempt $i"
+            code=$(curl -sS -o /tmp/health.out -w '%{http_code}' --max-time 60 "$URL" || echo 000)
+            echo "status=$code body=$(cat /tmp/health.out 2>/dev/null || true)"
+            if [ "$code" = "200" ]; then
+              echo "Render is awake"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Render health check failed"
+          exit 1
