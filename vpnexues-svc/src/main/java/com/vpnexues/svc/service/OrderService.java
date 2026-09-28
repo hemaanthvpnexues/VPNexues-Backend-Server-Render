@@ -7,6 +7,7 @@ import com.vpnexues.svc.dto.CouponApplyResponse;
 import com.vpnexues.svc.dto.OrderDto;
 import com.vpnexues.svc.dto.OrderItemDto;
 import com.vpnexues.svc.entity.Address;
+import com.vpnexues.svc.entity.InventoryItem;
 import com.vpnexues.svc.entity.Order;
 import com.vpnexues.svc.entity.OrderChannel;
 import com.vpnexues.svc.entity.OrderItem;
@@ -25,7 +26,10 @@ import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,13 +59,25 @@ public class OrderService {
         }
 
         // Validate stock availability for all cart items
+        List<UUID> productIds = cart.items().stream()
+                .map(ci -> ci.productId())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<UUID, Integer> availableByProduct = productIds.isEmpty()
+                ? Map.of()
+                : inventoryItemRepository.findAllByProductIdIn(productIds).stream()
+                        .collect(Collectors.toMap(
+                                inv -> inv.getProduct().getId(),
+                                InventoryItem::getQuantity,
+                                (a, b) -> a));
         for (var ci : cart.items()) {
             if (ci.productId() != null) {
-                var inventory = inventoryItemRepository.findByProductId(ci.productId());
-                if (inventory.isEmpty() || inventory.get().getQuantity() < ci.qty()) {
+                Integer available = availableByProduct.get(ci.productId());
+                if (available == null || available < ci.qty()) {
                     throw new BadRequestException(
                             "Insufficient stock for " + ci.name() + " (available: "
-                                    + inventory.map(i -> String.valueOf(i.getQuantity())).orElse("0")
+                                    + (available == null ? "0" : String.valueOf(available))
                                     + ", requested: " + ci.qty() + ")");
                 }
             }

@@ -12,6 +12,5 @@ public record ContactMessageDto(
         String subject,
         String message,
         String status,
-        Instant createdAt,
-        UUID chatSessionId) {
+        Instant createdAt) {
 }

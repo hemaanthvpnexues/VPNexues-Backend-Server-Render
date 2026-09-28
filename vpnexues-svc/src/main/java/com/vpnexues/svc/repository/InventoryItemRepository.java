@@ -1,6 +1,8 @@
 package com.vpnexues.svc.repository;
 
 import com.vpnexues.svc.entity.InventoryItem;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -9,4 +11,6 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
     boolean existsByProductId(UUID productId);
 
     java.util.Optional<InventoryItem> findByProductId(UUID productId);
+
+    List<InventoryItem> findAllByProductIdIn(Collection<UUID> productIds);
 }

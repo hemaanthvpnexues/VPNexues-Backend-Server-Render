@@ -22,6 +22,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_batch_fetch_size: 50
 
   mail:
     host: ${SMTP_HOST:}
@@ -70,8 +71,3 @@ app:
     # Secure cookies require HTTPS — keep false for local http://localhost dev,
     # set true (via COOKIE_SECURE=true) once served over real HTTPS.
     secure: ${COOKIE_SECURE:false}
-  contact:
-    # Inbox for Contact-page form submissions (see ContactFormMailService).
-    # Empty = skip email, message is still saved to the DB + admin inbox.
-    mail:
-      receiver: ${CONTACT_RECEIVER_EMAIL:}

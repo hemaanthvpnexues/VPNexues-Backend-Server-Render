@@ -67,11 +67,10 @@ public class AuthController {
             if (claims == null || !req.firebaseUid().equals(claims.getSubject())) {
                 throw new com.vpnexues.svc.exception.BadRequestException("Invalid Firebase session");
             }
-            // Firebase mode: verify ID token and find/create user
-            user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name(), req.email());
+            user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name());
         } else {
             // Legacy mode: verify OTP via backend provider
-            user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name(), req.email());
+            user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name());
         }
 
         // Merge guest cart into user cart. The vpx_guest cookie is deliberately NOT cleared here:
