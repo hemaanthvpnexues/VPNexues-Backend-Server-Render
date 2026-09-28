@@ -1,13 +1,20 @@
 name: Keep Render awake
 
-# Render suspends the service after a period with no traffic. The next visitor then pays the
-# cold-start cost, and the frontend's 10s axios timeout turns that into
-# "Something went wrong. Please try again." on checkout. Pinging the health endpoint every
-# 10 minutes keeps the instance warm so real requests answer in ~1-3s instead of timing out.
+# Render's free instance suspends after 15 minutes with no external traffic; the next visitor
+# then pays a 50s+ cold start and the frontend's 10s axios timeout turns that into
+# "Something went wrong" / a cart add that never lands. Pinging the health endpoint on a
+# 5-minute cadence keeps it warm so real requests answer in ~1-3s.
+#
+# Cron notes:
+#  - 5 minutes is GitHub's shortest allowed interval.
+#  - The `2,7,...` offset deliberately avoids the top of the hour, where GitHub queues and
+#    sometimes drops scheduled runs (docs: "High load times include the start of every hour").
+#  - Each run pings twice (~4 min apart) so a single dropped schedule still leaves coverage
+#    under Render's 15-minute spin-down window.
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -16,21 +23,38 @@ permissions:
 jobs:
   ping:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Warm the service
         run: |
           set -u
           URL="https://vpnexues-api.onrender.com/api/health"
+
+          ping() {
+            curl -sS -o /tmp/health.out -w '%{http_code} %{time_total}' --max-time 60 "$URL" || true
+          }
+
+          awake=0
           for i in 1 2 3; do
-            echo "attempt $i"
-            code=$(curl -sS -o /tmp/health.out -w '%{http_code}' --max-time 60 "$URL" || echo 000)
-            echo "status=$code body=$(cat /tmp/health.out 2>/dev/null || true)"
+            echo "attempt $i at $(date -u +%H:%M:%SZ)"
+            res=$(ping)
+            code=${res%% *}
+            took=${res##* }
+            echo "status=$code time=${took}s body=$(cat /tmp/health.out 2>/dev/null || true)"
             if [ "$code" = "200" ]; then
-              echo "Render is awake"
-              exit 0
+              awake=1
+              break
             fi
             sleep 20
           done
-          echo "Render health check failed"
-          exit 1
+
+          if [ "$awake" != "1" ]; then
+            echo "Render health check failed"
+            exit 1
+          fi
+
+          echo "Render is awake — holding the job open for 4 minutes"
+          sleep 240
+          res=$(ping)
+          echo "second ping: status=${res%% *} time=${res##* }s body=$(cat /tmp/health.out 2>/dev/null || true)"
+          echo "done"
