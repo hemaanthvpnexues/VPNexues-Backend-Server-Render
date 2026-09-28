@@ -12,12 +12,17 @@ import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @Entity
 @Table(name = "products")
+// Cart mutations walk every cart line's lazy product proxy (price re-resolve, box grouping). Batching their
+// loads keeps that to one IN (...) query instead of one round trip per item - at ~150-200 ms per round trip
+// (Oregon app -> Mumbai database) that difference alone was seconds.
+@BatchSize(size = 50)
 public class Product extends BaseEntity {
 
     @Column(nullable = false)

@@ -4,6 +4,7 @@ import com.vpnexues.svc.entity.Cart;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -11,8 +12,19 @@ import org.springframework.data.repository.query.Param;
 
 public interface CartRepository extends JpaRepository<Cart, UUID> {
 
+    /**
+     * Eager-fetches items + products in the SAME statement as the cart row.
+     *
+     * <p>Both associations are LAZY, so without this graph a cart read costs 1 query for the cart + 1 for the
+     * items + one per distinct product (batching only helps if every proxy is seen at once). Each round trip
+     * costs ~150-200 ms because the app runs in Oregon and the database in Mumbai, so N+1 here is what made
+     * an 8-item cart read take ~3.4 s.
+     */
+    @EntityGraph(attributePaths = {"items", "items.product"})
     Optional<Cart> findByUserId(UUID userId);
 
+    /** Guest-cart equivalent of {@link #findByUserId(UUID)} - same single-statement guarantee. */
+    @EntityGraph(attributePaths = {"items", "items.product"})
     Optional<Cart> findByGuestToken(String guestToken);
 
     /**

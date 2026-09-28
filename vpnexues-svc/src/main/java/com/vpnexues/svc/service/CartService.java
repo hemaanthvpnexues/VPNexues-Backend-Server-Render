@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import jakarta.persistence.EntityManager;
@@ -40,11 +41,27 @@ public class CartService {
     private final EntityManager entityManager;
 
     public Cart getOrCreateCart(CartOwner owner) {
-        // Serialize cart CREATION for this owner. The cart row cannot be row-locked yet (it may not exist),
-        // so N simultaneous first-ever requests used to all INSERT the same user_id / guest_token and all but
-        // one died on unique constraint "carts_*_key" -> 500 -> the item silently vanished on the client.
-        // A transaction-scoped advisory lock makes the losers wait, then see the winner's row and reuse it.
-        // Released automatically on commit/rollback; re-entrant within the same transaction.
+        // FAST PATH: cart already exists -> read it with NO lock. The advisory lock used to be taken on every
+        // call, including plain GET /api/cart, which serialized all concurrent reads for the same cart. Each
+        // transaction holds it for ~1-3 s of database round trips, so the browser's parallel cart requests
+        // queued up and later ones blew past the 10 s client timeout -> "Something went wrong".
+        if (owner.isUser()) {
+            Optional<Cart> existing = cartRepository.findByUserId(owner.userId());
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        } else {
+            Optional<Cart> existing = cartRepository.findByGuestToken(owner.guestToken());
+            if (existing.isPresent()) {
+                return existing.get();
+            }
+        }
+
+        // CREATE PATH ONLY: serialize cart CREATION for this owner. The cart row cannot be row-locked yet (it
+        // may not exist), so N simultaneous first-ever requests used to all INSERT the same user_id /
+        // guest_token and all but one died on unique constraint "carts_*_key" -> 500 -> the item silently
+        // vanished on the client. The losers wait here, then see the winner's row and reuse it. Re-entrant
+        // within the same transaction; released automatically on commit/rollback.
         lockOwner(owner);
         if (owner.isUser()) {
             return cartRepository.findByUserId(owner.userId()).orElseGet(() -> {
