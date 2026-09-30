@@ -1,0 +1,85 @@
+name: Backend CI
+
+# Gate between "pushed" and "live".
+#
+# Render's auto-deploy is switched OFF for this service, so a push to main no longer ships on its own.
+# The deploy job below fires only after the test job is green, which means a commit that fails
+# `gradlew test` can never reach https://vpnexues-api.onrender.com.
+#
+# Needs no secrets to run the tests: `gradlew test` passes with no .env present (verified).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Queue runs instead of cancelling one mid-deploy when commits land close together.
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Make wrapper executable
+        run: chmod +x vpnexues-svc/gradlew
+
+      - name: Unit tests
+        working-directory: vpnexues-svc
+        run: ./gradlew test --no-daemon --stacktrace
+
+      - name: Build bootable jar
+        working-directory: vpnexues-svc
+        run: ./gradlew bootJar --no-daemon -x test
+
+      - name: Upload jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vpnexues-svc-jar-${{ github.sha }}
+          path: vpnexues-svc/build/libs/*.jar
+          retention-days: 7
+          if-no-files-found: error
+
+  deploy:
+    needs: build-and-test
+    # PRs only ever build; production is touched by pushes to main.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Render deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "RENDER_API_KEY secret is not set - cannot deploy."
+            exit 1
+          fi
+          resp=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${RENDER_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{"clear_cache":false}' \
+            https://api.render.com/v1/services/srv-daqh4im7bikc738gj29g/deploys)
+          echo "$resp"
+          echo "$resp" | grep -q '"deploy"' || {
+            echo "Render did not accept the deploy request"
+            exit 1
+          }

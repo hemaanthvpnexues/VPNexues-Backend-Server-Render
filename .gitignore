@@ -13,3 +13,6 @@ build/
 *.jwt_for_render.txt
 .jwt_for_render.txt
 vpnexues-ui-dist-cpanel.zip
+.render.env
+.env.*
+.gitignore
