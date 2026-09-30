@@ -6,7 +6,12 @@ name: Backend CI
 # The deploy job below fires only after the test job is green, which means a commit that fails
 # `gradlew test` can never reach https://vpnexues-api.onrender.com.
 #
-# Needs no secrets to run the tests: `gradlew test` passes with no .env present (verified).
+# The single test is a @SpringBootTest: it boots the whole context, runs every Flyway migration from an
+# EMPTY database and lets Hibernate validate the schema. So CI gets its own throwaway Postgres 17 instead
+# of a .env file - which also means a migration that cannot apply from scratch (schema drift between git
+# and the live database) fails the build instead of failing production.
+#
+# No repository secrets are needed to run the tests themselves; RENDER_API_KEY is only used by deploy.
 
 on:
   push:
@@ -27,6 +32,29 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: vpnexues
+          POSTGRES_PASSWORD: vpnexues_ci
+          POSTGRES_DB: vpnexues_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vpnexues -d vpnexues_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/vpnexues_ci
+      DB_USERNAME: vpnexues
+      DB_PASSWORD: vpnexues_ci
+      # Dummy value used only by the test context - never a real credential.
+      JWT_SECRET: ci-only-jwt-secret-0000000000000000000000000000000000000000000000000000
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
