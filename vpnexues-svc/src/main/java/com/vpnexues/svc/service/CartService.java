@@ -106,14 +106,28 @@ public class CartService {
      * user_id / guest_token is what protects the create path.
      */
     private Cart lockCart(CartOwner owner) {
+        Cart locked;
         if (owner.isUser()) {
-            return cartRepository
-                    .findByUserIdForUpdate(owner.userId())
-                    .orElseGet(() -> getOrCreateCart(owner));
+            locked = cartRepository.findByUserIdForUpdate(owner.userId()).orElse(null);
+        } else {
+            locked = cartRepository.findByGuestTokenForUpdate(owner.guestToken()).orElse(null);
         }
-        return cartRepository
-                .findByGuestTokenForUpdate(owner.guestToken())
-                .orElseGet(() -> getOrCreateCart(owner));
+        if (locked == null) {
+            // Brand-new cart: there is no row to lock yet - the unique constraint on user_id /
+            // guest_token plus the advisory lock inside getOrCreateCart() protect the create path.
+            return getOrCreateCart(owner);
+        }
+
+        // Hydrate items + products with ONE fetch-join query while we already hold the row lock.
+        // Without this the mutation pays two separate lazy round trips later (cart.getItems() while
+        // matching lines, then every line's product while building the DTO). Each round trip costs
+        // ~150-200 ms because the app runs in Oregon and the database in Mumbai, and all of it is
+        // time spent holding the lock - which is what queued rapid "add product" clicks behind each
+        // other for 4-5 s in the order summary.
+        if (owner.isUser()) {
+            return cartRepository.findByUserId(owner.userId()).orElse(locked);
+        }
+        return cartRepository.findByGuestToken(owner.guestToken()).orElse(locked);
     }
 
     public CartDto addItem(CartOwner owner, UUID productId, int qty, String countryCode) {
