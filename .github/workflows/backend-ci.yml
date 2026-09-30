@@ -106,8 +106,11 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"clear_cache":false}' \
             https://api.render.com/v1/services/srv-daqh4im7bikc738gj29g/deploys)
+          # POST /v1/services/{id}/deploys returns the deploy object at the TOP LEVEL ({"id":"dep-...", ...}),
+          # unlike the GET list endpoint which wraps each one as {"deploy":{...}}.
           echo "$resp"
-          echo "$resp" | grep -q '"deploy"' || {
+          echo "$resp" | grep -q '"status"' || {
             echo "Render did not accept the deploy request"
             exit 1
           }
+          echo "Render deploy created: $(echo "$resp" | grep -o '"id":"dep-[^"]*"')"
