@@ -11,4 +11,6 @@ public interface ContactMessageRepository extends JpaRepository<ContactMessage, 
     List<ContactMessage> findAllByOrderByCreatedAtDesc();
 
     List<ContactMessage> findByStatusOrderByCreatedAtDesc(ContactMessageStatus status);
+
+    List<ContactMessage> findByChatSessionId(UUID chatSessionId);
 }

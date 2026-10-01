@@ -90,6 +90,13 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
                         .permitAll()
+                        // Guest live-chat endpoints — session UUID is unguessable.
+                        .requestMatchers(HttpMethod.POST, "/api/support-chats", "/api/support-chats/*/messages", "/api/support-chats/*/notify")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/support-chats/*/contact")
+                        .permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/support-chats/*")
+                        .permitAll()
                         .anyRequest()
                         .authenticated())
                 // No session yet => 401 (Authentication required), not 403.
