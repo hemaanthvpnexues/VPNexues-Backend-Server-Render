@@ -2,6 +2,7 @@ package com.vpnexues.svc.service;
 
 import com.vpnexues.svc.dto.BoxSummaryDto;
 import com.vpnexues.svc.entity.CartItem;
+import com.vpnexues.svc.entity.ProductPriceOverride;
 import com.vpnexues.svc.entity.Product;
 import com.vpnexues.svc.entity.StoreSettings;
 import com.vpnexues.svc.repository.ProductPriceOverrideRepository;
@@ -52,6 +53,13 @@ public class PricingService {
     }
 
     public record ResolvedPrice(BigDecimal price, BigDecimal oldPrice) {
+    }
+
+    public ResolvedPrice resolve(Product product, String countryCode, ProductPriceOverride preloaded) {
+        if (preloaded != null) {
+            return new ResolvedPrice(preloaded.getPrice(), preloaded.getOldPrice());
+        }
+        return resolve(product, countryCode);
     }
 
     public ResolvedPrice resolve(Product product, String countryCode) {

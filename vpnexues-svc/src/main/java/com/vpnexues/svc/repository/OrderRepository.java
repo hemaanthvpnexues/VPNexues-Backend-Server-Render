@@ -12,6 +12,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
 
     List<Order> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o LEFT JOIN FETCH o.user ORDER BY o.createdAt DESC")
+    List<Order> findAllWithUser();
+
     Optional<Order> findByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByOrderNumber(String orderNumber);

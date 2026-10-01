@@ -71,3 +71,10 @@ app:
     # Secure cookies require HTTPS — keep false for local http://localhost dev,
     # set true (via COOKIE_SECURE=true) once served over real HTTPS.
     secure: ${COOKIE_SECURE:false}
+
+# Inbox for Contact-page form submissions (see ContactFormMailService).
+# Key must match the service's @Value("${contact.mail.receiver:}").
+# Empty = skip email, message is still saved to the DB + admin inbox.
+contact:
+  mail:
+    receiver: ${CONTACT_RECEIVER_EMAIL:}

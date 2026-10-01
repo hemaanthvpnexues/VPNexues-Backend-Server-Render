@@ -51,9 +51,10 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
-// Loads .env into a map, skipping keys already set in the real environment
-// (CI should set those directly — this never overrides them). No-op if
-// .env doesn't exist.
+// Loads .env into a map, skipping keys already set (non-blank) in the real
+// environment (CI should set those directly — this never overrides them).
+// Blank shell values do NOT win over .env (a stale `set KEY=` in a terminal
+// would otherwise silently wipe the .env value). No-op if .env doesn't exist.
 def loadDotEnv = {
 	def envVars = [:]
 	def envFile = file('.env')
@@ -64,7 +65,8 @@ def loadDotEnv = {
 				def idx = line.indexOf('=')
 				def key = line.substring(0, idx).trim()
 				def value = line.substring(idx + 1).trim()
-				if (System.getenv(key) == null) {
+				def existing = System.getenv(key)
+				if (existing == null || existing.trim().isEmpty()) {
 					envVars[key] = value
 				}
 			}

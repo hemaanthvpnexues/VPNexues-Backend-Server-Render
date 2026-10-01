@@ -13,4 +13,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
     java.util.Optional<InventoryItem> findByProductId(UUID productId);
 
     List<InventoryItem> findAllByProductIdIn(Collection<UUID> productIds);
+
+    @org.springframework.data.jpa.repository.Query("SELECT i FROM InventoryItem i LEFT JOIN FETCH i.product")
+    List<InventoryItem> findAllWithProduct();
 }

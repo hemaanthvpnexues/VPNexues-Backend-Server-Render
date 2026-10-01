@@ -1,6 +1,8 @@
 package com.vpnexues.svc.repository;
 
 import com.vpnexues.svc.entity.Product;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -25,6 +27,9 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     Page<Product> findByActiveTrueOrderBySalesCountAeDesc(Pageable pageable);
 
     Page<Product> findByActiveTrue(Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p LEFT JOIN FETCH p.badges WHERE p.id IN :ids")
+    List<Product> findWithBadgesByIdIn(@org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
 
     @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND p.category = :category ORDER BY p.salesCount DESC, p.name ASC")
     Page<Product> findByActiveTrueAndCategoryOrderBySalesCountDesc(@org.springframework.data.repository.query.Param("category") String category, Pageable pageable);

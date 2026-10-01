@@ -51,12 +51,15 @@ public class AdminSessionService {
         return rawToken;
     }
 
+    /** New raw refresh token plus the admin it belongs to — the controller needs both to mint a fresh access cookie. */
+    public record RefreshResult(String rawRefreshToken, AdminUser admin) {}
+
     /**
      * Rotate a refresh token: revoke old, issue new.
-     * Returns the new raw refresh token, or empty if invalid/expired/revoked.
+     * Returns the new raw refresh token with its admin, or empty if invalid/expired/revoked.
      */
     @Transactional
-    public Optional<String> rotateRefreshToken(
+    public Optional<RefreshResult> rotateRefreshToken(
             String rawToken,
             String ipAddress,
             String userAgent) {
@@ -119,7 +122,7 @@ public class AdminSessionService {
         refreshTokenRepository.save(existing);
         refreshTokenRepository.save(newSession);
 
-        return Optional.of(newRawToken);
+        return Optional.of(new RefreshResult(newRawToken, admin));
     }
 
     /**

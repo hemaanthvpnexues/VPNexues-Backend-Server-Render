@@ -16,8 +16,9 @@ import org.springframework.stereotype.Service;
  * Sends Contact-page form submissions to the configured company inbox.
  *
  * <p>Recipient comes only from backend config ({@code CONTACT_RECEIVER_EMAIL}) — never from
- * frontend input. Plain-text mail so user content needs no HTML escaping. The sender's
- * address is set as Reply-To so support can reply directly to the customer.
+ * frontend input. Plain-text mail (like {@link CareerApplicationService}) so user content
+ * needs no HTML escaping. The sender's address is set as Reply-To so support can reply
+ * directly to the customer.
  */
 @Service
 @RequiredArgsConstructor

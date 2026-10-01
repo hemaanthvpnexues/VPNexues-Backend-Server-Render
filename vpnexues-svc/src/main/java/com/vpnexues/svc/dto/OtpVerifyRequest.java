@@ -7,6 +7,7 @@ public record OtpVerifyRequest(
         @NotBlank @Pattern(regexp = "^[+0-9 ]{6,20}$") String phone,
         String code,
         String name,
+        String email,
         String firebaseUid,
         String accessToken) {
 }

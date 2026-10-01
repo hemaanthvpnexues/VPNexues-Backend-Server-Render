@@ -50,7 +50,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                         .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
-                .authorizeHttpRequests(auth -> auth.requestMatchers(HttpMethod.POST, "/api/admin/auth/login")
+                .authorizeHttpRequests(auth -> auth.requestMatchers(
+                                HttpMethod.POST, "/api/admin/auth/login", "/api/admin/auth/refresh")
+                        // /refresh must stay anonymous: it is called precisely when the
+                        // access cookie has expired, so it authenticates via the
+                        // httpOnly refresh cookie itself (validated in the controller).
                         .permitAll()
                         // Session probe: anonymous callers get 200 + a JSON null body
                         // (see AdminAuthController#me) instead of a scary 401 in the console.
@@ -79,6 +83,7 @@ public class SecurityConfig {
                                 "/api/csrf-token",
                                 "/api/auth/otp/send",
                                 "/api/auth/otp/verify",
+                                "/api/auth/login",
                                 "/api/products/**",
                                 "/api/cart/**",
                                 "/api/coupons/apply",

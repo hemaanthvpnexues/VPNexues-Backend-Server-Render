@@ -2,6 +2,7 @@ package com.vpnexues.svc.controller;
 
 import com.vpnexues.svc.dto.OtpSendRequest;
 import com.vpnexues.svc.dto.OtpVerifyRequest;
+import com.vpnexues.svc.dto.PhoneLoginRequest;
 import com.vpnexues.svc.dto.UserDto;
 import com.vpnexues.svc.entity.User;
 import com.vpnexues.svc.security.CookieNames;
@@ -11,6 +12,7 @@ import com.vpnexues.svc.exception.NotFoundException;
 import com.vpnexues.svc.repository.UserRepository;
 import com.vpnexues.svc.service.CartService;
 import com.vpnexues.svc.service.CustomerAuthService;
+import com.vpnexues.svc.service.PhoneLoginRateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -35,6 +37,7 @@ public class AuthController {
     private final CartService cartService;
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final PhoneLoginRateLimiter phoneLoginRateLimiter;
 
     @Value("${app.cookie.secure:false}")
     private boolean secureCookies;
@@ -67,12 +70,40 @@ public class AuthController {
             if (claims == null || !req.firebaseUid().equals(claims.getSubject())) {
                 throw new com.vpnexues.svc.exception.BadRequestException("Invalid Firebase session");
             }
-            user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name());
+            user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name(), req.email());
         } else {
             // Legacy mode: verify OTP via backend provider
-            user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name());
+            user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name(), req.email());
         }
 
+        return issueSession(user, request, response);
+    }
+
+    /**
+     * OTP-less login: the phone number alone resolves a known account and starts a session —
+     * no SMS/Firebase OTP is sent, so returning users never burn OTP quota.
+     *
+     * <p>Unknown numbers get 404 so the client can route them to signup instead.
+     * Because there is no secret, PhoneLoginRateLimiter caps probing attempts
+     * (5/number, 30/IP per 5 minutes → HTTP 429).
+     */
+    @PostMapping("/api/auth/login")
+    public UserDto loginByPhone(
+            @RequestBody @Valid PhoneLoginRequest req, HttpServletRequest request, HttpServletResponse response) {
+
+        phoneLoginRateLimiter.check(req.phone(), request);
+
+        User user = userRepository.findByPhone(req.phone())
+                .orElseThrow(() -> new NotFoundException("No account found for this mobile number"));
+
+        return issueSession(user, request, response);
+    }
+
+    /**
+     * Merges any guest cart, issues the 30-day customer JWT and sets the `vpx_at` cookie.
+     * Shared by OTP verify and OTP-less login so both paths behave identically.
+     */
+    private UserDto issueSession(User user, HttpServletRequest request, HttpServletResponse response) {
         // Merge guest cart into user cart. The vpx_guest cookie is deliberately NOT cleared here:
         // a "Add to cart" that was still in flight while this login ran can land in the guest cart
         // after this merge and would then be stranded forever. CartOwnerResolver folds any leftover

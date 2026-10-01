@@ -11,4 +11,6 @@ public interface ProductPriceOverrideRepository extends JpaRepository<ProductPri
     Optional<ProductPriceOverride> findByProductIdAndCountryCode(UUID productId, String countryCode);
 
     List<ProductPriceOverride> findByProductIdIn(List<UUID> productIds);
+
+    List<ProductPriceOverride> findByCountryCodeAndProductIdIn(String countryCode, List<UUID> productIds);
 }

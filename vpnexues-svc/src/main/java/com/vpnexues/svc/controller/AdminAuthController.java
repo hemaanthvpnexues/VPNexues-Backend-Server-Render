@@ -136,30 +136,29 @@ public class AdminAuthController {
             return ResponseEntity.status(401).build();
         }
 
-        Optional<String> newRefreshToken = sessionService.rotateRefreshToken(
-                rawToken,
-                extractClientIp(request),
-                request.getHeader("User-Agent"));
+        Optional<AdminSessionService.RefreshResult> rotated =
+                sessionService.rotateRefreshToken(rawToken, extractClientIp(request), request.getHeader("User-Agent"));
 
-        if (newRefreshToken.isEmpty()) {
+        if (rotated.isEmpty()) {
             // Reuse detected or token invalid — clear cookies
             clearCookie(response, CookieNames.ADMIN_ACCESS_TOKEN);
             clearCookie(response, CookieNames.ADMIN_REFRESH_TOKEN);
             return ResponseEntity.status(401).build();
         }
 
-        // Reload admin to get current state
-        String tokenHash = jwtService.hashRefreshToken(rawToken);
-        // We need to get the admin from the old token — but it's already revoked.
-        // Instead, we extract adminId from the access token if present, or from the refresh flow.
-        // For simplicity, the refresh response only sets new cookies — the client should
-        // call /me with the new access token.
+        AdminSessionService.RefreshResult result = rotated.get();
+        AdminUser admin = result.admin();
 
-        // Generate new access token using the new refresh token's admin
-        // The admin was already loaded in rotateRefreshToken — we'll use /me endpoint instead.
-        // The client will call GET /api/admin/auth/me with the new access token.
-
-        setRefreshCookie(response, newRefreshToken.get());
+        // Mint a fresh access cookie from the refreshed session (the old one may be
+        // expired — this is the whole point of the refresh endpoint).
+        String jwt = jwtService.generateToken(
+                admin.getId(),
+                JwtService.TOKEN_TYPE_ADMIN,
+                Map.of(
+                        "role", admin.getRole().name(),
+                        "tokenVersion", admin.getTokenVersion()));
+        setAuthCookie(response, jwt);
+        setRefreshCookie(response, result.rawRefreshToken());
         return ResponseEntity.noContent().build();
     }
 

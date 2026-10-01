@@ -31,7 +31,7 @@ public class DashboardSummaryService {
     private final InventoryItemService inventoryItemService;
 
     public DashboardSummaryDto get() {
-        List<Order> ordersByRecency = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+        List<Order> ordersByRecency = orderRepository.findAllWithUser();
 
         BigDecimal totalRevenue = ordersByRecency.stream()
                 .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
@@ -43,11 +43,16 @@ public class DashboardSummaryService {
                 .map(this::toOrderSummaryDto)
                 .toList();
 
-        List<AdminInventoryItemDto> lowStockItems = inventoryItemService.list(null, null).stream()
-                .filter(i -> !"IN_STOCK".equals(i.status()))
-                .sorted(Comparator.comparingInt(AdminInventoryItemDto::quantity))
-                .limit(LOW_STOCK_LIMIT)
-                .toList();
+        List<AdminInventoryItemDto> lowStockItems = List.of();
+        try {
+            lowStockItems = inventoryItemService.list(null, null).stream()
+                    .filter(i -> !"IN_STOCK".equals(i.status()))
+                    .sorted(Comparator.comparingInt(AdminInventoryItemDto::quantity))
+                    .limit(LOW_STOCK_LIMIT)
+                    .toList();
+        } catch (Exception ex) {
+            // ignore inventory errors to keep dashboard available
+        }
 
         return new DashboardSummaryDto(
                 totalRevenue,
@@ -63,11 +68,11 @@ public class DashboardSummaryService {
         return new AdminOrderSummaryDto(
                 order.getId(),
                 order.getOrderNumber(),
-                user.getName(),
-                user.getPhone(),
+                user != null ? user.getName() : "Unknown",
+                user != null ? user.getPhone() : "",
                 order.getCountryCode(),
-                order.getChannel().name(),
-                order.getStatus().name(),
+                order.getChannel() != null ? order.getChannel().name() : "SHOP",
+                order.getStatus() != null ? order.getStatus().name() : "",
                 order.getGrandTotal(),
                 order.getCreatedAt());
     }

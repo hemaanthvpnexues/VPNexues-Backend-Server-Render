@@ -36,7 +36,7 @@ public class InventoryItemService {
 
     @Transactional(readOnly = true)
     public List<AdminInventoryItemDto> list(String category, String status) {
-        return inventoryItemRepository.findAll().stream()
+        return inventoryItemRepository.findAllWithProduct().stream()
                 .filter(i -> !StringUtils.hasText(category) || i.getProduct().getCategory().equalsIgnoreCase(category))
                 .map(this::toDto)
                 .filter(dto -> !StringUtils.hasText(status) || dto.status().equalsIgnoreCase(status))
