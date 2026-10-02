@@ -91,6 +91,10 @@ public class SecurityConfig {
                                 "/api/b2b-enquiries",
                                 "/api/careers/**",
                                 "/api/testimonials",
+                                "/api/team-members",
+                                "/api/news",
+                                "/api/news/*",
+                                "/uploads/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")

@@ -25,6 +25,12 @@ public class FlywayConfig {
                 .baselineVersion("0")
                 .outOfOrder(true)
                 .validateOnMigrate(false)
+                // V19 exists only on main. On every other branch its file is absent from
+                // the classpath, so repair() classed it MISSING_SUCCESS and wrote a
+                // type='DELETE' tombstone over the applied row. Back on main Flyway then
+                // re-ran V19 out of order and died on "country_code already exists".
+                // Ignore missing migrations so repair() never deletes their history rows.
+                .ignoreMigrationPatterns("*:missing")
                 .load();
         fw.repair();
         return fw;

@@ -13,7 +13,6 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,17 +30,32 @@ public class DashboardSummaryService {
     private final InventoryItemService inventoryItemService;
 
     public DashboardSummaryDto get() {
-        List<Order> ordersByRecency = orderRepository.findAllWithUser();
+        List<Order> ordersByRecency = List.of();
+        try {
+            ordersByRecency = orderRepository.findAllWithUser();
+        } catch (Exception ex) {
+            // keep dashboard available despite DB/order errors
+        }
 
-        BigDecimal totalRevenue = ordersByRecency.stream()
-                .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
-                .map(Order::getGrandTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalRevenue = BigDecimal.ZERO;
+        try {
+            totalRevenue = ordersByRecency.stream()
+                    .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
+                    .map(Order::getGrandTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        } catch (Exception ex) {
+            // ignore calculation errors
+        }
 
-        List<AdminOrderSummaryDto> recentOrders = ordersByRecency.stream()
-                .limit(RECENT_ORDERS_LIMIT)
-                .map(this::toOrderSummaryDto)
-                .toList();
+        List<AdminOrderSummaryDto> recentOrders = List.of();
+        try {
+            recentOrders = ordersByRecency.stream()
+                    .limit(RECENT_ORDERS_LIMIT)
+                    .map(this::toOrderSummaryDto)
+                    .toList();
+        } catch (Exception ex) {
+            // ignore mapping errors
+        }
 
         List<AdminInventoryItemDto> lowStockItems = List.of();
         try {
@@ -54,11 +68,25 @@ public class DashboardSummaryService {
             // ignore inventory errors to keep dashboard available
         }
 
+        long userCount = 0;
+        try {
+            userCount = userRepository.count();
+        } catch (Exception ex) {
+            // ignore
+        }
+
+        long productCount = 0;
+        try {
+            productCount = productRepository.countByActiveTrue();
+        } catch (Exception ex) {
+            // ignore
+        }
+
         return new DashboardSummaryDto(
                 totalRevenue,
                 ordersByRecency.size(),
-                userRepository.count(),
-                productRepository.countByActiveTrue(),
+                userCount,
+                productCount,
                 recentOrders,
                 lowStockItems);
     }

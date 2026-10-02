@@ -36,6 +36,11 @@ spring:
           starttls:
             enable: true
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
 server:
   # Render/Docker inject PORT (e.g. 10000). Local/Gradle bootRun keeps SERVER_PORT or 8080.
   port: ${PORT:${SERVER_PORT:8080}}
@@ -60,6 +65,11 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,https://tesing.vpnexues.com,http://tesing.vpnexues.com}
   otp:
     provider: stub
+  # Admin photo uploads land here as real files (ContentUploadService) and are
+  # served back at /uploads/** (UploadStorageConfig). Relative to the process
+  # working dir by default; override with UPLOAD_DIR for deployments.
+  uploads:
+    dir: ${UPLOAD_DIR:uploads}
   firebase:
     project-id: ${FIREBASE_PROJECT_ID:vpnexues-otp-and-img-s}
   admin:

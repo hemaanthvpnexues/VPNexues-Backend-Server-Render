@@ -3,6 +3,16 @@
 -- Categories: Vegetables, Fruits, Beverages, Groceries, Box Extra (Fruits + Groceries)
 -- base_price = SGD price, old_price = SGD oldPrice, discount_pct = ROUND((old-price - base-price) / old-price * 100)
 
+-- Product categories. The admin product create/update validates against this table,
+-- and it shipped empty (blocked adding products and price edits). Idempotent.
+INSERT INTO categories (id, name, slug, emoji, active)
+VALUES
+  ('b0000000-0000-0000-0000-000000000001', 'Vegetables', 'vegetables', '🥕', TRUE),
+  ('b0000000-0000-0000-0000-000000000002', 'Fruits', 'fruits', '🍎', TRUE),
+  ('b0000000-0000-0000-0000-000000000003', 'Beverages', 'beverages', '🧃', TRUE),
+  ('b0000000-0000-0000-0000-000000000004', 'Groceries', 'groceries', '🛒', TRUE)
+ON CONFLICT DO NOTHING;
+
 INSERT INTO products (id, name, slug, category, description, base_price, old_price, unit, sku, image_url, discount_pct, active)
 VALUES
   ('a0000000-0000-0000-0000-000000000001', 'Vine Tomatoes', 'vine-tomatoes', 'Vegetables', NULL, 3.9, 4.8, 'per kg', 'GPNX-002', '/images/products/Vine Tomatoes.jpg', 19, TRUE),

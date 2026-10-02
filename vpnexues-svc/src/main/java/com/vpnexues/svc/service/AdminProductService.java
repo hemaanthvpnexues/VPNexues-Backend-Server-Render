@@ -86,7 +86,13 @@ public class AdminProductService {
         product.setUnit(req.unit());
         product.setImageUrl(req.imageUrl());
         product.setDiscountPct(req.discountPct());
-        product.setBadges(req.badges() != null ? req.badges() : List.of());
+        // Mutate the existing (mutable) collection in place — replacing it with List.of()
+        // made Hibernate's flush throw UnsupportedOperationException (500 on every
+        // update that omitted badges, i.e. the admin's price edits and form saves).
+        if (req.badges() != null) {
+            product.getBadges().clear();
+            product.getBadges().addAll(req.badges());
+        }
         product.setActive(req.active());
         return toDto(productRepository.save(product));
     }
