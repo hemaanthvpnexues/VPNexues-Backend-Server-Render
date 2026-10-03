@@ -81,6 +81,10 @@ app:
     # Secure cookies require HTTPS — keep false for local http://localhost dev,
     # set true (via COOKIE_SECURE=true) once served over real HTTPS.
     secure: ${COOKIE_SECURE:false}
+  # Trusted-device binding for phone login: a browser that has passed OTP once
+  # keeps the `vpx_dv` cookie for this long and may log in without a new OTP.
+  trusted-device:
+    ttl-days: ${TRUSTED_DEVICE_TTL_DAYS:180}
 
 # Inbox for Contact-page form submissions (see ContactFormMailService).
 # Key must match the service's @Value("${contact.mail.receiver:}").

@@ -3,6 +3,7 @@ package com.vpnexues.svc.service;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.vpnexues.svc.exception.TooManyRequestsException;
+import com.vpnexues.svc.security.ClientIpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,11 +51,6 @@ public class PhoneLoginRateLimiter {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            int comma = forwarded.indexOf(',');
-            return (comma > 0 ? forwarded.substring(0, comma) : forwarded).trim();
-        }
-        return request.getRemoteAddr();
+        return ClientIpUtil.from(request);
     }
 }

@@ -1,5 +1,6 @@
 package com.vpnexues.svc.controller;
 
+import com.vpnexues.svc.dto.LoginResponse;
 import com.vpnexues.svc.dto.OtpSendRequest;
 import com.vpnexues.svc.dto.OtpVerifyRequest;
 import com.vpnexues.svc.dto.PhoneLoginRequest;
@@ -13,10 +14,12 @@ import com.vpnexues.svc.repository.UserRepository;
 import com.vpnexues.svc.service.CartService;
 import com.vpnexues.svc.service.CustomerAuthService;
 import com.vpnexues.svc.service.PhoneLoginRateLimiter;
+import com.vpnexues.svc.service.TrustedDeviceService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,9 +41,14 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserRepository userRepository;
     private final PhoneLoginRateLimiter phoneLoginRateLimiter;
+    private final TrustedDeviceService trustedDeviceService;
 
     @Value("${app.cookie.secure:false}")
     private boolean secureCookies;
+
+    /** Must match TrustedDeviceService's TTL so the cookie and server-side check expire together. */
+    @Value("${app.trusted-device.ttl-days:180}")
+    private long trustedDeviceTtlDays;
 
     /**
      * Sends OTP via backend (stub provider). Firebase Auth on the client handles
@@ -57,6 +65,10 @@ public class AuthController {
      * 1. Firebase mode: client sends firebaseUid + accessToken (Firebase ID token) — backend
      *    verifies the token and finds/creates user by Firebase UID
      * 2. Legacy mode: client sends phone + code — backend verifies via stub OTP provider
+     *
+     * <p>Both modes record THIS browser as a trusted device ({@code vpx_dv} cookie),
+     * so the next login on this device is OTP-less while any other device still
+     * has to pass OTP again.
      */
     @PostMapping("/api/auth/otp/verify")
     public UserDto verifyOtp(
@@ -76,19 +88,27 @@ public class AuthController {
             user = customerAuthService.verifyOtpAndResolveUser(req.phone(), req.code(), req.name(), req.email());
         }
 
-        return issueSession(user, request, response);
+        UserDto dto = issueSession(user, request, response);
+        // OTP just proved possession of the phone from this browser — trust the device
+        // so the next login here skips the OTP (any OTHER device never gets a session
+        // without its own OTP first).
+        setTrustedDeviceCookie(response, trustedDeviceService.trust(user, request));
+        return dto;
     }
 
     /**
-     * OTP-less login: the phone number alone resolves a known account and starts a session —
-     * no SMS/Firebase OTP is sent, so returning users never burn OTP quota.
+     * Phone login with trusted-device binding.
      *
-     * <p>Unknown numbers get 404 so the client can route them to signup instead.
-     * Because there is no secret, PhoneLoginRateLimiter caps probing attempts
-     * (5/number, 30/IP per 5 minutes → HTTP 429).
+     * <p>Known number + valid {@code vpx_dv} cookie (this browser has passed OTP
+     * before) → instant session, no SMS. Known number WITHOUT that cookie →
+     * {@code requiresOtp:true} and NO session; the client must run the Firebase
+     * OTP flow, after which {@code /api/auth/otp/verify} trusts the new device.
+     * Unknown numbers get 404 so the client can route them to signup.
+     *
+     * <p>Rate limits (5/number, 30/IP per 5 minutes → HTTP 429) still cap probing.
      */
     @PostMapping("/api/auth/login")
-    public UserDto loginByPhone(
+    public ResponseEntity<LoginResponse> loginByPhone(
             @RequestBody @Valid PhoneLoginRequest req, HttpServletRequest request, HttpServletResponse response) {
 
         phoneLoginRateLimiter.check(req.phone(), request);
@@ -96,7 +116,16 @@ public class AuthController {
         User user = userRepository.findByPhone(req.phone())
                 .orElseThrow(() -> new NotFoundException("No account found for this mobile number"));
 
-        return issueSession(user, request, response);
+        Optional<String> renewedToken = trustedDeviceService.renewIfTrusted(
+                user, CookieUtil.read(request, CookieNames.TRUSTED_DEVICE), request);
+
+        if (renewedToken.isEmpty()) {
+            // Untrusted device — challenge with OTP instead of handing out a session.
+            return ResponseEntity.ok(LoginResponse.challenge());
+        }
+
+        setTrustedDeviceCookie(response, renewedToken.get());
+        return ResponseEntity.ok(LoginResponse.session(issueSession(user, request, response)));
     }
 
     /**
@@ -140,6 +169,22 @@ public class AuthController {
                 .sameSite(secureCookies ? "None" : "Lax")
                 .path("/")
                 .maxAge(Duration.ofSeconds(jwtService.customerAccessTokenTtlSeconds()))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    /**
+     * Long-lived trusted-device cookie (`vpx_dv`). Same cross-site rules as `vpx_at`
+     * (GoDaddy → Render), but httpOnly-only — the value is an opaque random token
+     * that only the backend can validate (it stores only the SHA-256 hash).
+     */
+    private void setTrustedDeviceCookie(HttpServletResponse response, String token) {
+        ResponseCookie cookie = ResponseCookie.from(CookieNames.TRUSTED_DEVICE, token)
+                .httpOnly(true)
+                .secure(secureCookies)
+                .sameSite(secureCookies ? "None" : "Lax")
+                .path("/")
+                .maxAge(Duration.ofDays(trustedDeviceTtlDays))
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
