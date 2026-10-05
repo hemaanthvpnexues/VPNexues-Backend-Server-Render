@@ -26,6 +26,9 @@ public class PricingService {
     private static final BigDecimal DEFAULT_BIG_BOX_MIN_KG = BigDecimal.TEN;
     private static final BigDecimal DEFAULT_BIG_BOX_DISCOUNT_RATE = new BigDecimal("0.12");
 
+    /** Markets with explicit conversion rates — the four regions admin dashboards must mirror. */
+    public static final List<String> PRICED_REGIONS = List.of("IN", "SG", "US", "AE");
+
     private final ProductPriceOverrideRepository priceOverrideRepository;
     private final StoreSettingsRepository storeSettingsRepository;
 
@@ -66,19 +69,34 @@ public class PricingService {
         return priceOverrideRepository
                 .findByProductIdAndCountryCode(product.getId(), countryCode)
                 .map(o -> new ResolvedPrice(o.getPrice(), o.getOldPrice()))
-                .orElseGet(() -> {
-                    // No override — convert SGD base price per country rate (so US/AE see correct local price)
-                    BigDecimal rate = switch (countryCode != null ? countryCode.toUpperCase() : "SG") {
-                        case "IN" -> new BigDecimal("62");
-                        case "SG" -> BigDecimal.ONE;
-                        case "US" -> new BigDecimal("0.74");
-                        case "AE" -> new BigDecimal("2.72");
-                        default -> BigDecimal.ONE;
-                    };
-                    BigDecimal price = product.getBasePrice().multiply(rate).setScale(2, java.math.RoundingMode.HALF_UP);
-                    BigDecimal old = product.getOldPrice() != null ? product.getOldPrice().multiply(rate).setScale(2, java.math.RoundingMode.HALF_UP) : null;
-                    return new ResolvedPrice(price, old);
-                });
+                .orElseGet(() -> resolveLoaded(product, countryCode, null));
+    }
+
+    /** SGD base → market rate (so US/AE see correct local price). Unknown markets fall back to 1 (SG). */
+    public BigDecimal rateFor(String countryCode) {
+        return switch (countryCode != null ? countryCode.toUpperCase() : "SG") {
+            case "IN" -> new BigDecimal("62");
+            case "SG" -> BigDecimal.ONE;
+            case "US" -> new BigDecimal("0.74");
+            case "AE" -> new BigDecimal("2.72");
+            default -> BigDecimal.ONE;
+        };
+    }
+
+    /**
+     * Resolve with a preloaded override (null = none) and NO repository lookup — used by admin
+     * product lists that batch-load overrides, so 1000 products don't trigger 1000 queries.
+     */
+    public ResolvedPrice resolveLoaded(Product product, String countryCode, ProductPriceOverride preloaded) {
+        if (preloaded != null) {
+            return new ResolvedPrice(preloaded.getPrice(), preloaded.getOldPrice());
+        }
+        BigDecimal rate = rateFor(countryCode);
+        BigDecimal price = product.getBasePrice().multiply(rate).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal old = product.getOldPrice() != null
+                ? product.getOldPrice().multiply(rate).setScale(2, java.math.RoundingMode.HALF_UP)
+                : null;
+        return new ResolvedPrice(price, old);
     }
 
     /** Per-line result for a box pricing computation: how much of a CartItem's lineTotal to charge. */
