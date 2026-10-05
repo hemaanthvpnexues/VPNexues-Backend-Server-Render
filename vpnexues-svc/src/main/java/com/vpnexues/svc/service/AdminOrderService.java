@@ -6,12 +6,14 @@ import com.vpnexues.svc.dto.AdminOrderSummaryDto;
 import com.vpnexues.svc.dto.OrderItemDto;
 import com.vpnexues.svc.dto.UserDto;
 import com.vpnexues.svc.entity.Address;
+import com.vpnexues.svc.entity.AdminRole;
 import com.vpnexues.svc.entity.Order;
 import com.vpnexues.svc.entity.OrderChannel;
 import com.vpnexues.svc.entity.OrderStatus;
 import com.vpnexues.svc.entity.User;
 import com.vpnexues.svc.exception.BadRequestException;
 import com.vpnexues.svc.exception.NotFoundException;
+import com.vpnexues.svc.repository.AdminUserRepository;
 import com.vpnexues.svc.repository.OrderRepository;
 import com.vpnexues.svc.repository.OrderSpecifications;
 import java.time.Instant;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminOrderService {
 
     private final OrderRepository orderRepository;
+    private final AdminUserRepository adminUserRepository;
 
     public Page<AdminOrderSummaryDto> list(
             OrderStatus status,
@@ -51,14 +55,33 @@ public class AdminOrderService {
     }
 
     @Transactional
-    public AdminOrderDetailDto updateStatus(UUID id, OrderStatus status) {
+    public AdminOrderDetailDto updateStatus(UUID id, OrderStatus status, UUID requestingAdminId) {
         Order order = getEntity(id);
+        requireOrderCountryScope(order, requestingAdminId);
         if (!order.getStatus().canTransitionTo(status)) {
             throw new BadRequestException(
                     "Cannot transition order from " + order.getStatus() + " to " + status);
         }
         order.setStatus(status);
         return toDetailDto(orderRepository.save(order));
+    }
+
+    /** SUPER_ADMIN manages all countries; every other admin is scoped to their own country. */
+    private void requireOrderCountryScope(Order order, UUID requestingAdminId) {
+        var admin = requestingAdminId == null
+                ? null
+                : adminUserRepository.findById(requestingAdminId).orElse(null);
+        if (admin == null) {
+            throw new AccessDeniedException("Access denied");
+        }
+        if (admin.getRole() == AdminRole.SUPER_ADMIN) {
+            return;
+        }
+        String orderCountry = order.getCountryCode();
+        String adminCountry = admin.getCountryCode();
+        if (orderCountry == null || adminCountry == null || !orderCountry.equalsIgnoreCase(adminCountry)) {
+            throw new AccessDeniedException("You can only update orders from your own country.");
+        }
     }
 
     private Order getEntity(UUID id) {
