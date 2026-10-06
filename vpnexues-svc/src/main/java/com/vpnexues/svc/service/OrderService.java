@@ -24,6 +24,7 @@ import com.vpnexues.svc.repository.ProductRepository;
 import com.vpnexues.svc.repository.UserRepository;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,8 @@ public class OrderService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final BigDecimal NON_IN_DELIVERY_FEE = BigDecimal.valueOf(8);
+    /** Customers may self-cancel only inside this window after placing the order. */
+    private static final Duration CANCEL_WINDOW = Duration.ofHours(1);
 
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -212,6 +215,25 @@ public class OrderService {
                 .findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new NotFoundException("Order not found: " + orderId));
         return toDto(order);
+    }
+
+    /**
+     * Customer self-service cancellation. Two guards mirror the order status state
+     * machine: the current status must allow a transition to CANCELLED, and the
+     * order must be younger than {@link #CANCEL_WINDOW}.
+     */
+    public OrderDto cancelForUser(UUID orderId, UUID userId) {
+        Order order = orderRepository
+                .findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new NotFoundException("Order not found: " + orderId));
+        if (!order.getStatus().canTransitionTo(OrderStatus.CANCELLED)) {
+            throw new BadRequestException("Order cannot be cancelled in status " + order.getStatus());
+        }
+        if (order.getCreatedAt().isBefore(Instant.now().minus(CANCEL_WINDOW))) {
+            throw new BadRequestException("Orders can only be cancelled within 1 hour of placing them");
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        return toDto(orderRepository.save(order));
     }
 
     private static final int MAX_ORDER_NUMBER_RETRIES = 10;

@@ -62,6 +62,11 @@ public class OrderController {
         return orderService.getForUser(id, userId);
     }
 
+    @PostMapping("/api/orders/{id}/cancel")
+    public OrderDto cancel(@AuthenticationPrincipal UUID userId, @PathVariable UUID id) {
+        return orderService.cancelForUser(id, userId);
+    }
+
     @GetMapping("/api/orders/{id}/tracking")
     public OrderDto tracking(@AuthenticationPrincipal UUID userId, @PathVariable UUID id) {
         // Phase 1: tracking view reuses the order detail (status only); a dedicated

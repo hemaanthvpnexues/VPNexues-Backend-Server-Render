@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class B2BEnquiryService {
 
     private final B2BEnquiryRepository b2bEnquiryRepository;
+    private final B2BEnquiryMailService mailService;
 
     public B2BEnquiryDto create(CreateB2BEnquiryRequest req) {
         B2BEnquiry enquiry = new B2BEnquiry();
@@ -29,7 +30,12 @@ public class B2BEnquiryService {
         enquiry.setProductInterest(req.productInterest());
         enquiry.setQuantity(req.quantity());
         enquiry.setEstimatedValue(req.estimatedValue());
-        return toDto(b2bEnquiryRepository.save(enquiry));
+        B2BEnquiry saved = b2bEnquiryRepository.save(enquiry);
+        // Confirmation to the customer + notification copy to the team inbox.
+        // Both methods swallow their own errors — a mail failure never fails the save.
+        mailService.sendCustomerConfirmation(saved);
+        mailService.sendTeamNotification(saved);
+        return toDto(saved);
     }
 
     @Transactional(readOnly = true)
