@@ -27,17 +27,32 @@ public class ProductService {
     private final ProductPriceOverrideRepository priceOverrideRepository;
     private final PricingService pricingService;
 
-    public Page<ProductDto> list(String category, String search, String countryCode, Pageable pageable) {
+    /**
+     * TEMPORARY (head instruction, 07-Oct-2026): {@code excludeCategory} is a
+     * comma-separated list of category names to leave out of the storefront
+     * listing (currently "Beverages"). Pass null/blank for no exclusion.
+     */
+    public Page<ProductDto> list(String category, String search, String countryCode, String excludeCategory, Pageable pageable) {
         String cc = countryCode != null ? countryCode.toUpperCase() : "IN";
+        java.util.Set<String> excluded = parseExcluded(excludeCategory);
+        boolean hide = !excluded.isEmpty();
         Page<Product> page;
         if (StringUtils.hasText(search)) {
-            page = switch (cc) {
+            page = hide ? switch (cc) {
+                case "SG" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountSgDesc(search, excluded, pageable);
+                case "US" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountUsDesc(search, excluded, pageable);
+                case "AE" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountAeDesc(search, excluded, pageable);
+                default -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountDesc(search, excluded, pageable);
+            } : switch (cc) {
                 case "SG" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseOrderBySalesCountSgDesc(search, pageable);
                 case "US" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseOrderBySalesCountUsDesc(search, pageable);
                 case "AE" -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseOrderBySalesCountAeDesc(search, pageable);
                 default -> productRepository.findByActiveTrueAndNameContainingIgnoreCaseOrderBySalesCountDesc(search, pageable);
             };
         } else if (StringUtils.hasText(category)) {
+            if (hide && excluded.stream().anyMatch(e -> e.equalsIgnoreCase(category))) {
+                return Page.<Product>empty(pageable).map(p -> toDto(p, countryCode, null));
+            }
             page = switch (cc) {
                 case "SG" -> productRepository.findByActiveTrueAndCategoryOrderBySalesCountSgDesc(category, pageable);
                 case "US" -> productRepository.findByActiveTrueAndCategoryOrderBySalesCountUsDesc(category, pageable);
@@ -45,7 +60,12 @@ public class ProductService {
                 default -> productRepository.findByActiveTrueAndCategoryOrderBySalesCountDesc(category, pageable);
             };
         } else {
-            page = switch (cc) {
+            page = hide ? switch (cc) {
+                case "SG" -> productRepository.findByActiveTrueAndCategoryNotInOrderBySalesCountSgDesc(excluded, pageable);
+                case "US" -> productRepository.findByActiveTrueAndCategoryNotInOrderBySalesCountUsDesc(excluded, pageable);
+                case "AE" -> productRepository.findByActiveTrueAndCategoryNotInOrderBySalesCountAeDesc(excluded, pageable);
+                default -> productRepository.findByActiveTrueAndCategoryNotInOrderBySalesCountDesc(excluded, pageable);
+            } : switch (cc) {
                 case "SG" -> productRepository.findByActiveTrueOrderBySalesCountSgDesc(pageable);
                 case "US" -> productRepository.findByActiveTrueOrderBySalesCountUsDesc(pageable);
                 case "AE" -> productRepository.findByActiveTrueOrderBySalesCountAeDesc(pageable);
@@ -64,6 +84,17 @@ public class ProductService {
                             .toList(), pageable, page.getTotalElements());
         }
         return page.map(p -> toDto(p, countryCode, null));
+    }
+
+    /** "Beverages" or "Beverages,Drinks" → Set; blank/null → empty set (no exclusion). */
+    private static java.util.Set<String> parseExcluded(String excludeCategory) {
+        if (!StringUtils.hasText(excludeCategory)) {
+            return java.util.Set.of();
+        }
+        return java.util.Arrays.stream(excludeCategory.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
     }
 
     public ProductDto getBySlug(String slug, String countryCode) {

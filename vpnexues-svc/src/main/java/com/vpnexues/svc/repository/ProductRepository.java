@@ -59,6 +59,32 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
 
     Page<Product> findByActiveTrueAndNameContainingIgnoreCase(String query, Pageable pageable);
 
+    // TEMP exclusion variants (beverages hidden per head, 07-Oct-2026) — storefront
+    // listing minus a set of categories; admin variants below stay unfiltered.
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND p.category NOT IN :categories ORDER BY p.salesCount DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndCategoryNotInOrderBySalesCountDesc(@org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND p.category NOT IN :categories ORDER BY p.salesCountSg DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndCategoryNotInOrderBySalesCountSgDesc(@org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND p.category NOT IN :categories ORDER BY p.salesCountUs DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndCategoryNotInOrderBySalesCountUsDesc(@org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND p.category NOT IN :categories ORDER BY p.salesCountAe DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndCategoryNotInOrderBySalesCountAeDesc(@org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) AND p.category NOT IN :categories ORDER BY p.salesCount DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountDesc(@org.springframework.data.repository.query.Param("query") String query, @org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) AND p.category NOT IN :categories ORDER BY p.salesCountSg DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountSgDesc(@org.springframework.data.repository.query.Param("query") String query, @org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) AND p.category NOT IN :categories ORDER BY p.salesCountUs DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountUsDesc(@org.springframework.data.repository.query.Param("query") String query, @org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM Product p WHERE p.active = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :query, '%')) AND p.category NOT IN :categories ORDER BY p.salesCountAe DESC, p.name ASC")
+    Page<Product> findByActiveTrueAndNameContainingIgnoreCaseAndCategoryNotInOrderBySalesCountAeDesc(@org.springframework.data.repository.query.Param("query") String query, @org.springframework.data.repository.query.Param("categories") java.util.Collection<String> categories, Pageable pageable);
+
     // Admin variants — deliberately not activeTrue-scoped, so inactive products stay
     // manageable in the admin UI instead of disappearing once deactivated.
     Page<Product> findByCategory(String category, Pageable pageable);

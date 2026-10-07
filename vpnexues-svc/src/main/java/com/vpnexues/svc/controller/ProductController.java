@@ -21,12 +21,13 @@ public class ProductController {
     public PageResponse<ProductDto> list(
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String excludeCategory,
             @RequestParam(defaultValue = "SG") String country,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         size = Math.min(Math.max(1, size), 200);
         Pageable pageable = PageRequest.of(page, size);
-        return PageResponse.from(productService.list(category, search, country, pageable));
+        return PageResponse.from(productService.list(category, search, country, excludeCategory, pageable));
     }
 
     @GetMapping("/api/products/{slug}")
