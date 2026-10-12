@@ -94,6 +94,7 @@ public class SecurityConfig {
                                 "/api/team-members",
                                 "/api/news",
                                 "/api/news/*",
+                                "/api/gallery-images",
                                 "/uploads/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",

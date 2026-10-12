@@ -39,12 +39,14 @@ public class AdminOrderService {
             OrderStatus status,
             OrderChannel channel,
             String countryCode,
+            String buyerPhone,
             Instant createdFrom,
             Instant createdBefore,
             Pageable pageable) {
         Specification<Order> spec = Specification.<Order>where(OrderSpecifications.hasStatus(status))
                 .and(OrderSpecifications.hasChannel(channel))
                 .and(OrderSpecifications.hasCountry(countryCode))
+                .and(OrderSpecifications.hasBuyerPhone(buyerPhone))
                 .and(OrderSpecifications.createdFrom(createdFrom))
                 .and(OrderSpecifications.createdBefore(createdBefore));
         return orderRepository.findAll(spec, pageable).map(this::toSummaryDto);

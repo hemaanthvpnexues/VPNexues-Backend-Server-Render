@@ -92,6 +92,14 @@ class ContentUploadServiceTest {
     }
 
     @Test
+    void storesGalleryImagesUnderUploadsGallery() throws IOException {
+        MockMultipartFile file = new MockMultipartFile("file", "gal.png", "image/png", PNG_HEADER);
+        String url = service().storePhoto(file, "Harvest Day", null, "gallery");
+        assertEquals("/uploads/gallery/harvest-day.png", url);
+        assertTrue(Files.exists(tempDir.resolve("gallery").resolve("harvest-day.png")));
+    }
+
+    @Test
     void rejectsUnknownUploadFolder() {
         MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", PNG_HEADER);
         BadRequestException ex = assertThrows(BadRequestException.class,

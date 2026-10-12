@@ -1,8 +1,10 @@
 package com.vpnexues.svc.controller;
 
+import com.vpnexues.svc.dto.GalleryImageDto;
 import com.vpnexues.svc.dto.NewsArticleDto;
 import com.vpnexues.svc.dto.TeamMemberDto;
 import com.vpnexues.svc.exception.NotFoundException;
+import com.vpnexues.svc.service.GalleryService;
 import com.vpnexues.svc.service.NewsService;
 import com.vpnexues.svc.service.TeamMemberService;
 import java.util.List;
@@ -12,13 +14,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Unauthenticated content endpoints backing the public /team and /news pages. */
+/** Unauthenticated content endpoints backing the public /team, /news and /gallery pages. */
 @RestController
 @RequiredArgsConstructor
 public class ContentController {
 
     private final TeamMemberService teamMemberService;
     private final NewsService newsService;
+    private final GalleryService galleryService;
 
     @GetMapping("/api/team-members")
     public List<TeamMemberDto> teamMembers() {
@@ -28,6 +31,11 @@ public class ContentController {
     @GetMapping("/api/news")
     public List<NewsArticleDto> news() {
         return newsService.listPublished();
+    }
+
+    @GetMapping("/api/gallery-images")
+    public List<GalleryImageDto> galleryImages() {
+        return galleryService.listActive();
     }
 
     @GetMapping("/api/news/{id}")

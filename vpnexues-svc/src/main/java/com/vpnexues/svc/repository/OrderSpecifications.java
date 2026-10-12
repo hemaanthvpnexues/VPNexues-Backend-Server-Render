@@ -39,4 +39,11 @@ public final class OrderSpecifications {
     public static Specification<Order> createdBefore(Instant to) {
         return (root, query, cb) -> to == null ? cb.conjunction() : cb.lessThan(root.get("createdAt"), to);
     }
+
+    /** Exact match on the ordering user's phone — powers the ⚡ "customer's orders" quick view. */
+    public static Specification<Order> hasBuyerPhone(String phone) {
+        return (root, query, cb) -> StringUtils.hasText(phone)
+                ? cb.equal(root.get("user").get("phone"), phone.trim())
+                : cb.conjunction();
+    }
 }

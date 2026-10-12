@@ -1,9 +1,12 @@
 package com.vpnexues.svc.controller;
 
+import com.vpnexues.svc.dto.CreateGalleryImageRequest;
 import com.vpnexues.svc.dto.CreateNewsArticleRequest;
 import com.vpnexues.svc.dto.CreateTeamMemberRequest;
+import com.vpnexues.svc.dto.GalleryImageDto;
 import com.vpnexues.svc.dto.NewsArticleDto;
 import com.vpnexues.svc.dto.TeamMemberDto;
+import com.vpnexues.svc.dto.UpdateGalleryImageRequest;
 import com.vpnexues.svc.dto.UpdateNewsArticleRequest;
 import com.vpnexues.svc.dto.UpdateTeamMemberRequest;
 import com.vpnexues.svc.dto.UploadPhotoResponseDto;
@@ -11,6 +14,7 @@ import com.vpnexues.svc.entity.AdminRole;
 import com.vpnexues.svc.entity.AdminUser;
 import com.vpnexues.svc.repository.AdminUserRepository;
 import com.vpnexues.svc.service.ContentUploadService;
+import com.vpnexues.svc.service.GalleryService;
 import com.vpnexues.svc.service.NewsService;
 import com.vpnexues.svc.service.TeamMemberService;
 import jakarta.validation.Valid;
@@ -33,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * Admin CRUD for the public /team and /news content (admin JWT chain: /api/admin/**).
+ * Admin CRUD for the public /team, /news and /gallery content (admin JWT chain: /api/admin/**).
  * Restricted to the India sub-admin (and super admins): other country dashboards
  * do not expose this management UI, and the API enforces the same rule.
  */
@@ -43,6 +47,7 @@ public class AdminContentController {
 
     private final TeamMemberService teamMemberService;
     private final NewsService newsService;
+    private final GalleryService galleryService;
     private final AdminUserRepository adminUserRepository;
     private final ContentUploadService contentUploadService;
 
@@ -114,6 +119,34 @@ public class AdminContentController {
         newsService.delete(id);
     }
 
+    @GetMapping("/api/admin/gallery-images")
+    public List<GalleryImageDto> listGalleryImages(@AuthenticationPrincipal UUID adminId) {
+        requireContentManager(adminId);
+        return galleryService.listAll();
+    }
+
+    @PostMapping("/api/admin/gallery-images")
+    @ResponseStatus(HttpStatus.CREATED)
+    public GalleryImageDto createGalleryImage(@AuthenticationPrincipal UUID adminId,
+            @RequestBody @Valid CreateGalleryImageRequest req) {
+        requireContentManager(adminId);
+        return galleryService.create(req);
+    }
+
+    @PutMapping("/api/admin/gallery-images/{id}")
+    public GalleryImageDto updateGalleryImage(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id,
+            @RequestBody @Valid UpdateGalleryImageRequest req) {
+        requireContentManager(adminId);
+        return galleryService.update(id, req);
+    }
+
+    @DeleteMapping("/api/admin/gallery-images/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteGalleryImage(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id) {
+        requireContentManager(adminId);
+        galleryService.delete(id);
+    }
+
     /** SUPER_ADMIN manages all countries; every other admin must be the India (IN) sub-admin. */
     private void requireContentManager(UUID adminId) {
         AdminUser admin = adminId == null
@@ -123,7 +156,7 @@ public class AdminContentController {
             throw new AccessDeniedException("Access denied");
         }
         if (admin.getRole() != AdminRole.SUPER_ADMIN && !"IN".equalsIgnoreCase(admin.getCountryCode())) {
-            throw new AccessDeniedException("Team & News content can only be managed by the India sub-admin.");
+            throw new AccessDeniedException("Team, News and Gallery content can only be managed by the India sub-admin.");
         }
     }
 }

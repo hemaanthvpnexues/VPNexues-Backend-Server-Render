@@ -36,7 +36,7 @@ public class ContentUploadService {
     private static final long MAX_BYTES = 5 * 1024 * 1024;
 
     /** Subfolders of the uploads dir content may write to (never a path from the client). */
-    private static final java.util.Set<String> FOLDERS = java.util.Set.of("team", "news", "products");
+    private static final java.util.Set<String> FOLDERS = java.util.Set.of("team", "news", "products", "gallery");
 
     private final Path root;
 
@@ -50,7 +50,7 @@ public class ContentUploadService {
      * @param memberName optional display name/title; slugified into the filename so the
      *                   path reads like the old /images/team/nageswaran.jpg
      * @param replaceUrl previous /uploads/... path (best-effort delete of the old file)
-     * @param folder     "team" or "news" — the only writable subfolders
+     * @param folder     "team", "news", "products" or "gallery" — the writable subfolders
      */
     public String storePhoto(MultipartFile file, String memberName, String replaceUrl, String folder) throws IOException {
         if (file == null || file.isEmpty()) {

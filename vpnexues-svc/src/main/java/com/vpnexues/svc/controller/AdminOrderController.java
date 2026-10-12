@@ -15,6 +15,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,6 +37,7 @@ public class AdminOrderController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) OrderChannel channel,
             @RequestParam(required = false) String country,
+            @RequestParam(required = false) String buyerPhone,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "0") int page,
@@ -45,7 +47,7 @@ public class AdminOrderController {
         // Exclusive upper bound one day past dateTo so the whole day is included.
         Instant createdBefore =
                 dateTo == null ? null : dateTo.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
-        Pageable pageable = PageRequest.of(page, size);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         OrderStatus orderStatus = null;
         try {
             if (status != null && !status.isEmpty()) {
@@ -55,7 +57,7 @@ public class AdminOrderController {
             orderStatus = null;
         }
         return PageResponse.from(
-                adminOrderService.list(orderStatus, channel, country, createdFrom, createdBefore, pageable));
+                adminOrderService.list(orderStatus, channel, country, buyerPhone, createdFrom, createdBefore, pageable));
     }
 
     @GetMapping("/api/admin/orders/{id}")
