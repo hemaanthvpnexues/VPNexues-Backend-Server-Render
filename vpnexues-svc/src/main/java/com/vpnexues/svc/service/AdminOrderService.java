@@ -7,6 +7,7 @@ import com.vpnexues.svc.dto.OrderItemDto;
 import com.vpnexues.svc.dto.UserDto;
 import com.vpnexues.svc.entity.Address;
 import com.vpnexues.svc.entity.AdminRole;
+import com.vpnexues.svc.entity.AdminUser;
 import com.vpnexues.svc.entity.Order;
 import com.vpnexues.svc.entity.OrderChannel;
 import com.vpnexues.svc.entity.OrderStatus;
@@ -42,18 +43,22 @@ public class AdminOrderService {
             String buyerPhone,
             Instant createdFrom,
             Instant createdBefore,
-            Pageable pageable) {
+            Pageable pageable,
+            UUID requestingAdminId) {
+        String effectiveCountry = resolveCountryScope(countryCode, requestingAdminId);
         Specification<Order> spec = Specification.<Order>where(OrderSpecifications.hasStatus(status))
                 .and(OrderSpecifications.hasChannel(channel))
-                .and(OrderSpecifications.hasCountry(countryCode))
+                .and(OrderSpecifications.hasCountry(effectiveCountry))
                 .and(OrderSpecifications.hasBuyerPhone(buyerPhone))
                 .and(OrderSpecifications.createdFrom(createdFrom))
                 .and(OrderSpecifications.createdBefore(createdBefore));
         return orderRepository.findAll(spec, pageable).map(this::toSummaryDto);
     }
 
-    public AdminOrderDetailDto get(UUID id) {
-        return toDetailDto(getEntity(id));
+    public AdminOrderDetailDto get(UUID id, UUID requestingAdminId) {
+        Order order = getEntity(id);
+        requireOrderCountryScope(order, requestingAdminId);
+        return toDetailDto(order);
     }
 
     @Transactional
@@ -68,22 +73,46 @@ public class AdminOrderService {
         return toDetailDto(orderRepository.save(order));
     }
 
+    /**
+     * SUPER_ADMIN may filter the list by any country (null = all countries). Every other admin is
+     * pinned to their own country: a client-supplied {@code ?country=} can only narrow within that
+     * scope, never widen it — requesting a foreign country is rejected outright.
+     */
+    private String resolveCountryScope(String requestedCountry, UUID requestingAdminId) {
+        var admin = loadAdmin(requestingAdminId);
+        if (admin.getRole() == AdminRole.SUPER_ADMIN) {
+            return requestedCountry;
+        }
+        String adminCountry = admin.getCountryCode();
+        if (adminCountry == null) {
+            throw new AccessDeniedException("Access denied: your admin account has no country assigned.");
+        }
+        if (requestedCountry != null && !requestedCountry.isBlank()
+                && !requestedCountry.equalsIgnoreCase(adminCountry)) {
+            throw new AccessDeniedException("You can only view orders from your own country.");
+        }
+        return adminCountry;
+    }
+
     /** SUPER_ADMIN manages all countries; every other admin is scoped to their own country. */
     private void requireOrderCountryScope(Order order, UUID requestingAdminId) {
-        var admin = requestingAdminId == null
-                ? null
-                : adminUserRepository.findById(requestingAdminId).orElse(null);
-        if (admin == null) {
-            throw new AccessDeniedException("Access denied");
-        }
+        var admin = loadAdmin(requestingAdminId);
         if (admin.getRole() == AdminRole.SUPER_ADMIN) {
             return;
         }
         String orderCountry = order.getCountryCode();
         String adminCountry = admin.getCountryCode();
         if (orderCountry == null || adminCountry == null || !orderCountry.equalsIgnoreCase(adminCountry)) {
-            throw new AccessDeniedException("You can only update orders from your own country.");
+            throw new AccessDeniedException("You can only access orders from your own country.");
         }
+    }
+
+    private AdminUser loadAdmin(UUID requestingAdminId) {
+        if (requestingAdminId == null) {
+            throw new AccessDeniedException("Access denied");
+        }
+        return adminUserRepository.findById(requestingAdminId)
+                .orElseThrow(() -> new AccessDeniedException("Access denied"));
     }
 
     private Order getEntity(UUID id) {

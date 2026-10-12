@@ -41,7 +41,8 @@ public class AdminOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @AuthenticationPrincipal UUID requestingAdminId) {
         size = Math.min(Math.max(1, size), 200);
         Instant createdFrom = dateFrom == null ? null : dateFrom.atStartOfDay(ZoneOffset.UTC).toInstant();
         // Exclusive upper bound one day past dateTo so the whole day is included.
@@ -57,12 +58,15 @@ public class AdminOrderController {
             orderStatus = null;
         }
         return PageResponse.from(
-                adminOrderService.list(orderStatus, channel, country, buyerPhone, createdFrom, createdBefore, pageable));
+                adminOrderService.list(
+                        orderStatus, channel, country, buyerPhone, createdFrom, createdBefore, pageable,
+                        requestingAdminId));
     }
 
     @GetMapping("/api/admin/orders/{id}")
-    public AdminOrderDetailDto get(@PathVariable UUID id) {
-        return adminOrderService.get(id);
+    public AdminOrderDetailDto get(
+            @PathVariable UUID id, @AuthenticationPrincipal UUID requestingAdminId) {
+        return adminOrderService.get(id, requestingAdminId);
     }
 
     @PutMapping("/api/admin/orders/{id}/status")
