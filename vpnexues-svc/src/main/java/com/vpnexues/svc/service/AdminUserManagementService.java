@@ -11,6 +11,7 @@ import com.vpnexues.svc.repository.AdminLoginAuditRepository;
 import com.vpnexues.svc.repository.AdminUserRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,22 @@ public class AdminUserManagementService {
 
     @Transactional(readOnly = true)
     public List<AdminUserSummaryDto> list() {
-        return adminUserRepository.findAll().stream().map(this::toDto).toList();
+        List<AdminUser> admins = adminUserRepository.findAll();
+        if (admins.isEmpty()) {
+            return List.of();
+        }
+
+        // Single grouped query for every admin's last login — the per-row query
+        // this replaces was an N+1 and dominated Sub Admins page load time.
+        Map<UUID, Instant> lastLoginByAdmin = adminLoginAuditRepository
+                .findLatestSuccessfulLogins(admins.stream().map(AdminUser::getId).toList())
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        AdminLoginAuditRepository.LatestLoginProjection::getAdminId,
+                        AdminLoginAuditRepository.LatestLoginProjection::getLatestAt,
+                        (a, b) -> a));
+
+        return admins.stream().map(a -> toDto(a, lastLoginByAdmin.get(a.getId()))).toList();
     }
 
     public AdminUserSummaryDto create(CreateAdminUserRequest req) {
@@ -114,8 +130,13 @@ public class AdminUserManagementService {
         return toDto(saved);
     }
 
+    private AdminUserSummaryDto toDto(AdminUser a, Instant lastLogin) {
+        return new AdminUserSummaryDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode(), lastLogin);
+    }
+
+    /** Single-row path (create/update) — one lookup is fine outside the list. */
     private AdminUserSummaryDto toDto(AdminUser a) {
         Instant lastLogin = adminLoginAuditRepository.findLatestSuccessfulLoginByAdminId(a.getId()).orElse(null);
-        return new AdminUserSummaryDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode(), lastLogin);
+        return toDto(a, lastLogin);
     }
 }

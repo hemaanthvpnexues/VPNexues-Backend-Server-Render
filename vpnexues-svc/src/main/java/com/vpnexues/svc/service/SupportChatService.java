@@ -16,7 +16,10 @@ import com.vpnexues.svc.repository.ContactMessageRepository;
 import com.vpnexues.svc.repository.SupportChatMessageRepository;
 import com.vpnexues.svc.repository.SupportChatSessionRepository;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -170,10 +173,24 @@ public class SupportChatService {
         List<SupportChatSession> sessions = status == null
                 ? sessionRepository.findAllByOrderByCreatedAtDesc()
                 : sessionRepository.findByStatusOrderByCreatedAtDesc(status);
+        if (sessions.isEmpty()) {
+            return List.of();
+        }
+
+        // One query for all transcripts, grouped in memory. The per-session
+        // query this replaced ran once per row (N+1) on every Support load.
+        List<SupportChatMessage> allMessages = messageRepository.findBySessionIdInOrderByCreatedAtAsc(
+                sessions.stream().map(SupportChatSession::getId).toList());
+
+        Map<UUID, List<ChatMessageDto>> messagesBySession = new LinkedHashMap<>();
+        for (SupportChatMessage m : allMessages) {
+            messagesBySession
+                    .computeIfAbsent(m.getSession().getId(), k -> new ArrayList<>())
+                    .add(toMessageDto(m));
+        }
+
         return sessions.stream()
-                .map(s -> toDto(s, messageRepository.findBySessionIdOrderByCreatedAtAsc(s.getId()).stream()
-                        .map(this::toMessageDto)
-                        .toList()))
+                .map(s -> toDto(s, messagesBySession.getOrDefault(s.getId(), List.of())))
                 .toList();
     }
 

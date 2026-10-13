@@ -15,6 +15,12 @@ public interface OrderRepository extends JpaRepository<Order, UUID>, JpaSpecific
     @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o LEFT JOIN FETCH o.user ORDER BY o.createdAt DESC")
     List<Order> findAllWithUser();
 
+    /** Dashboard totals: push revenue/count to SQL instead of loading every order into memory. */
+    @Query("SELECT COALESCE(SUM(o.grandTotal), 0) FROM Order o WHERE o.status <> com.vpnexues.svc.entity.OrderStatus.CANCELLED")
+    java.math.BigDecimal sumRevenueExcludingCancelled();
+
+    long count();
+
     Optional<Order> findByIdAndUserId(UUID id, UUID userId);
 
     boolean existsByOrderNumber(String orderNumber);

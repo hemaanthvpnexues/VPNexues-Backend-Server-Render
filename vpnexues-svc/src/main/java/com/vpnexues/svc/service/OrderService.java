@@ -27,6 +27,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -41,7 +42,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final BigDecimal NON_IN_DELIVERY_FEE = BigDecimal.valueOf(8);
+    /** Flat delivery charge when the cart is under the free-delivery threshold. */
+    private static final BigDecimal DELIVERY_FEE = BigDecimal.valueOf(40);
+    private static final BigDecimal DEFAULT_FREE_DELIVERY_THRESHOLD = BigDecimal.valueOf(1000);
+    /** Country → cart subtotal at/above which delivery is free (mirrors the UI). */
+    private static final Map<String, BigDecimal> FREE_DELIVERY_THRESHOLDS = Map.of(
+            "IN", BigDecimal.valueOf(1000),
+            "SG", BigDecimal.valueOf(20),
+            "US", BigDecimal.valueOf(15),
+            "AE", BigDecimal.valueOf(60));
     /** Customers may self-cancel only inside this window after placing the order. */
     private static final Duration CANCEL_WINDOW = Duration.ofHours(1);
 
@@ -118,7 +127,12 @@ public class OrderService {
                         ? OrderChannel.SMALL_BOX
                         : OrderChannel.SHOP;
 
-        BigDecimal deliveryFee = "IN".equalsIgnoreCase(countryCode) ? BigDecimal.ZERO : NON_IN_DELIVERY_FEE;
+        BigDecimal freeDeliveryThreshold = FREE_DELIVERY_THRESHOLDS.getOrDefault(
+                countryCode == null ? "" : countryCode.toUpperCase(Locale.ROOT),
+                DEFAULT_FREE_DELIVERY_THRESHOLD);
+        BigDecimal deliveryFee = itemTotal.compareTo(freeDeliveryThreshold) >= 0
+                ? BigDecimal.ZERO
+                : DELIVERY_FEE;
         BigDecimal tax = BigDecimal.ZERO;
         BigDecimal tip = req.tip() != null ? req.tip() : BigDecimal.ZERO;
         BigDecimal grandTotal =
