@@ -4,7 +4,6 @@ import com.vpnexues.svc.dto.AdminInventoryItemDto;
 import com.vpnexues.svc.dto.AdminOrderSummaryDto;
 import com.vpnexues.svc.dto.DashboardSummaryDto;
 import com.vpnexues.svc.entity.Order;
-import com.vpnexues.svc.entity.OrderStatus;
 import com.vpnexues.svc.entity.User;
 import com.vpnexues.svc.repository.OrderRepository;
 import com.vpnexues.svc.repository.ProductRepository;
@@ -30,27 +29,29 @@ public class DashboardSummaryService {
     private final InventoryItemService inventoryItemService;
 
     public DashboardSummaryDto get() {
-        List<Order> ordersByRecency = List.of();
+        BigDecimal totalRevenue = BigDecimal.ZERO;
         try {
-            ordersByRecency = orderRepository.findAllWithUser();
+            // SQL aggregate — avoids loading every order into memory (was O(all orders)).
+            totalRevenue = orderRepository.sumRevenueExcludingCancelled();
+            if (totalRevenue == null) {
+                totalRevenue = BigDecimal.ZERO;
+            }
         } catch (Exception ex) {
             // keep dashboard available despite DB/order errors
         }
 
-        BigDecimal totalRevenue = BigDecimal.ZERO;
+        long totalOrders = 0;
         try {
-            totalRevenue = ordersByRecency.stream()
-                    .filter(o -> o.getStatus() != OrderStatus.CANCELLED)
-                    .map(Order::getGrandTotal)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            totalOrders = orderRepository.count();
         } catch (Exception ex) {
-            // ignore calculation errors
+            // ignore
         }
 
         List<AdminOrderSummaryDto> recentOrders = List.of();
         try {
-            recentOrders = ordersByRecency.stream()
-                    .limit(RECENT_ORDERS_LIMIT)
+            // Page of the newest orders only; same user join the old full fetch produced.
+            List<Order> recent = orderRepository.findAll(org.springframework.data.domain.PageRequest.of(0, RECENT_ORDERS_LIMIT, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))).getContent();
+            recentOrders = recent.stream()
                     .map(this::toOrderSummaryDto)
                     .toList();
         } catch (Exception ex) {
@@ -84,7 +85,7 @@ public class DashboardSummaryService {
 
         return new DashboardSummaryDto(
                 totalRevenue,
-                ordersByRecency.size(),
+                totalOrders,
                 userCount,
                 productCount,
                 recentOrders,

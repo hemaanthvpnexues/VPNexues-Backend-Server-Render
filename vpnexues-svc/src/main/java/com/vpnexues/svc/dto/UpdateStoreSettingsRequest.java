@@ -1,5 +1,9 @@
 package com.vpnexues.svc.dto;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -28,8 +32,11 @@ public record UpdateStoreSettingsRequest(
         String youtubeUrl,
         String whatsappUrl,
         String telegramUrl,
-        @NotNull Integer smallBoxStandardSlots,
-        @NotNull BigDecimal smallBoxPremiumRate,
-        @NotNull BigDecimal bigBoxMinKg,
-        @NotNull BigDecimal bigBoxDiscountRate) {
+        // Pricing knobs — bounds keep a fat-fingered/SUB_ADMIN edit from rewriting the whole
+        // price list (e.g. discountRate 0.99 = 99% off every Big Box; negative rates invert
+        // the +15% rule). Sensible ranges around the seeded defaults (10 / 0.15 / 10 / 0.12).
+        @NotNull @Min(1) @Max(1000) Integer smallBoxStandardSlots,
+        @NotNull @DecimalMin("0.0") @DecimalMax("1.0") BigDecimal smallBoxPremiumRate,
+        @NotNull @DecimalMin("0.0") @DecimalMax("1000") BigDecimal bigBoxMinKg,
+        @NotNull @DecimalMin("0.0") @DecimalMax("1.0") BigDecimal bigBoxDiscountRate) {
 }

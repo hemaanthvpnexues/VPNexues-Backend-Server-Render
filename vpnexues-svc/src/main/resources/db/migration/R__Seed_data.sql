@@ -15,7 +15,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO products (id, name, slug, category, description, base_price, old_price, unit, sku, image_url, discount_pct, active)
 VALUES
-  ('a0000000-0000-0000-0000-000000000001', 'Vine Tomatoes', 'vine-tomatoes', 'Vegetables', NULL, 3.9, 4.8, 'per kg', 'GPNX-002', '/images/products/Vine Tomatoes.jpg', 19, TRUE),
+  ('a0000000-0000-0000-0000-000000000001', 'Vine Tomatoes', 'vine-tomatoes', 'Vegetables', NULL, 3.9, 4.8, 'per kg', 'GPNX-002', '/images/products/Vine Tomatoes.jpg', 21, TRUE),
   ('a0000000-0000-0000-0000-000000000002', 'Organic Carrots', 'organic-carrots', 'Vegetables', NULL, 2.8, 3.5, 'per 500g', 'GPNX-001', '/images/products/Organic Carrots.jpg', 20, TRUE),
   ('a0000000-0000-0000-0000-000000000003', 'Red Onions', 'red-onions', 'Vegetables', NULL, 2.2, 2.8, 'per kg', 'GPNX-005', '/images/products/Red Onions.jpg', 21, TRUE),
   ('a0000000-0000-0000-0000-000000000004', 'Okra / Ladyfinger', 'okra-ladyfinger', 'Vegetables', NULL, 2.8, 3.5, 'per 300g', 'GPNX-024', '/images/products/Okra - Ladyfinger.jpg', 20, TRUE),
@@ -35,7 +35,7 @@ VALUES
   ('a0000000-0000-0000-0000-000000000018', 'Broccoli Head', 'broccoli-head', 'Vegetables', NULL, 3.5, 4.2, 'per pc', 'GPNX-007', '/images/products/Broccoli Head.jpg', 17, TRUE),
   ('a0000000-0000-0000-0000-000000000019', 'Cucumber', 'cucumber', 'Vegetables', NULL, 1.8, NULL, 'per pc', 'GPNX-008', '/images/products/Cucumber.jpg', NULL, TRUE),
   ('a0000000-0000-0000-0000-000000000020', 'Zucchini', 'zucchini', 'Vegetables', NULL, 2.9, 3.6, 'per 500g', 'GPNX-009', '/images/products/Zucchini.jpg', 19, TRUE),
-  ('a0000000-0000-0000-0000-000000000021', 'Cherry Tomatoes', 'cherry-tomatoes', 'Vegetables', NULL, 4.2, 5.0, 'per 250g', 'GPNX-010', '/images/products/Cherry Tomatoes.jpg', 16, TRUE),
+  ('a0000000-0000-0000-0000-000000000021', 'Cherry Tomatoes', 'cherry-tomatoes', 'Vegetables', NULL, 4.2, 5.0, 'per 250g', 'GPNX-010', '/images/products/Cherry Tomatoes.jpg', 23, TRUE),
   ('a0000000-0000-0000-0000-000000000022', 'Kale Bunch', 'kale-bunch', 'Vegetables', NULL, 3.8, NULL, 'per bunch', 'GPNX-011', '/images/products/Kale Bunch.jpg', NULL, TRUE),
   ('a0000000-0000-0000-0000-000000000023', 'Purple Cabbage', 'purple-cabbage', 'Vegetables', NULL, 3.2, 4.0, 'per pc', 'GPNX-012', '/images/products/Purple Cabbage.jpg', 20, TRUE),
   ('a0000000-0000-0000-0000-000000000024', 'White Radish', 'white-radish', 'Vegetables', NULL, 2.5, NULL, 'per kg', 'GPNX-014', '/images/products/White Radish.jpg', NULL, TRUE),
@@ -195,3 +195,15 @@ VALUES
   ('a0000000-0000-0000-0000-000000000183', 'Curd', 'curd', 'Groceries', NULL, 10.5, 13.0, 'per cup', 'GPNX-183', 'https://slnercwjkfacyrfhdsnp.supabase.co/storage/v1/object/public/vpnexues-images/webimages/product-images/Premium Fresh Curd.jpg', 19, TRUE),
   ('a0000000-0000-0000-0000-000000000184', 'Cheese', 'cheese', 'Groceries', NULL, 10.5, 13.0, 'per pack', 'GPNX-184', 'https://slnercwjkfacyrfhdsnp.supabase.co/storage/v1/object/public/vpnexues-images/webimages/product-images/Premium Fresh Cheese.jpg', 19, TRUE)
 ON CONFLICT (sku) DO NOTHING;
+
+-- IN-market price overrides for the two tomato products (shop page review,
+-- 14-Oct-2026): struck price above the selling price, in rupees. DO NOTHING so
+-- an admin edit made later through the UI is never clobbered on restart; V43 is
+-- the one-time correction for rows that already existed with wrong values.
+INSERT INTO product_price_overrides (product_id, country_code, price, old_price)
+SELECT id, 'IN', 30.00, 40.00 FROM products WHERE slug = 'vine-tomatoes'
+ON CONFLICT (product_id, country_code) DO NOTHING;
+
+INSERT INTO product_price_overrides (product_id, country_code, price, old_price)
+SELECT id, 'IN', 49.00, 50.00 FROM products WHERE slug = 'cherry-tomatoes'
+ON CONFLICT (product_id, country_code) DO NOTHING;

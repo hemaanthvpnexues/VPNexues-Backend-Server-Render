@@ -16,6 +16,7 @@ import com.vpnexues.svc.exception.BadRequestException;
 import com.vpnexues.svc.repository.SupportChatMessageRepository;
 import com.vpnexues.svc.repository.SupportChatSessionRepository;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -358,6 +359,17 @@ class SupportChatServiceTest {
         @Override
         public List<SupportChatMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId) {
             return store.stream().filter(m -> m.getSession().getId().equals(sessionId)).toList();
+        }
+
+        @Override
+        public List<SupportChatMessage> findBySessionIdInOrderByCreatedAtAsc(Collection<UUID> sessionIds) {
+            var wanted = new java.util.HashSet<>(sessionIds);
+            return store.stream()
+                    .filter(m -> wanted.contains(m.getSession().getId()))
+                    .sorted(java.util.Comparator
+                            .comparing((SupportChatMessage m) -> m.getSession().getId().toString())
+                            .thenComparing(SupportChatMessage::getCreatedAt))
+                    .toList();
         }
 
         @Override

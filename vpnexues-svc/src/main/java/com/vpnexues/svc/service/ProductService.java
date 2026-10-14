@@ -80,7 +80,7 @@ public class ProductService {
             java.util.Map<UUID, ProductPriceOverride> overrideMap = overrides.stream()
                     .collect(java.util.stream.Collectors.toMap(o -> o.getProduct().getId(), o -> o));
             return new org.springframework.data.domain.PageImpl<>(
-                    products.stream().map(p -> toDto(p, countryCode, overrideMap.get(p.getId())))
+                    products.stream().map(p -> toDto(p, countryCode, overrideMap.get(p.getId()), true))
                             .toList(), pageable, page.getTotalElements());
         }
         return page.map(p -> toDto(p, countryCode, null));
@@ -109,9 +109,24 @@ public class ProductService {
     }
 
     ProductDto toDto(Product product, String countryCode, ProductPriceOverride override) {
-        PricingService.ResolvedPrice resolved = override != null
-                ? pricingService.resolve(product, countryCode, override)
-                : pricingService.resolve(product, countryCode);
+        return toDto(product, countryCode, override, false);
+    }
+
+    /**
+     * @param overridesPreloaded true only in the {@link #list} batch path, where a prior
+     *     {@code findByCountryCodeAndProductIdIn} query already proved whether an override
+     *     exists for this product. When true, a {@code null} override means "no override in the
+     *     DB" → resolve directly from base price with NO repository lookup (PricingService.
+     *     resolveLoaded), instead of falling through to a per-product query (the N+1 that cost
+     *     ~24 extra queries / 4-9s on every shop load). Callers that have NOT batch-loaded
+     *     (getBySlug) must pass false so they still look the override up.
+     */
+    ProductDto toDto(Product product, String countryCode, ProductPriceOverride override, boolean overridesPreloaded) {
+        PricingService.ResolvedPrice resolved = overridesPreloaded
+                ? pricingService.resolveLoaded(product, countryCode, override)
+                : (override != null
+                        ? pricingService.resolve(product, countryCode, override)
+                        : pricingService.resolve(product, countryCode));
         return new ProductDto(
                 product.getId(),
                 product.getName(),

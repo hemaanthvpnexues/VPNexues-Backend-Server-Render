@@ -65,6 +65,22 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, "Endpoint not found");
     }
 
+    // Bad enum/UUID/page values (?channel=BOGUS, /orders/not-a-uuid, ?page=-1) used to fall
+    // through to handleGeneric as 500s — they are client input errors and must read as 400.
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+        String value = ex.getValue() == null ? "" : String.valueOf(ex.getValue());
+        String name = ex.getName() == null ? "parameter" : ex.getName();
+        return build(HttpStatus.BAD_REQUEST, "Invalid value '" + value + "' for " + name);
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
+        String message = ex.getMessage() == null ? "Invalid request parameter" : ex.getMessage();
+        return build(HttpStatus.BAD_REQUEST, message);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);

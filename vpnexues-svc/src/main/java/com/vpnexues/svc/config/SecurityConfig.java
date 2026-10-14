@@ -47,6 +47,10 @@ public class SecurityConfig {
     public SecurityFilterChain adminFilterChain(HttpSecurity http, JwtService jwtService, AdminUserRepository adminUserRepository) throws Exception {
         http.securityMatcher("/api/admin/**")
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // QA-04 documented decision: CSRF tokens are off on BOTH chains.
+                // Compensating controls: JSON-only writes (forms can't forge them
+                // without a preflight the CORS allow-list rejects) + OriginVerificationFilter
+                // (blocks non-preflighting form CSRF). See VPNEXUES_SVC.md § Security.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                         .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
@@ -73,6 +77,8 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http, JwtService jwtService, UserRepository userRepository) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // QA-04 documented decision (see admin chain comment): CSRF tokens
+                // disabled + OriginVerificationFilter + JSON-only writes.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                         .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
@@ -88,6 +94,7 @@ public class SecurityConfig {
                                 "/api/cart/**",
                                 "/api/coupons/apply",
                                 "/api/contact-messages",
+                                "/api/order-feedback",
                                 "/api/b2b-enquiries",
                                 "/api/careers/**",
                                 "/api/testimonials",

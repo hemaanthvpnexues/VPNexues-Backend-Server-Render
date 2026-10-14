@@ -131,17 +131,28 @@ public class CartService {
     }
 
     public CartDto addItem(CartOwner owner, UUID productId, int qty, String countryCode) {
+        if (qty < 1 || qty > 999) {
+            // DTO validation is the first gate; this is defense in depth for internal callers.
+            throw new BadRequestException("Quantity must be between 1 and 999");
+        }
         Cart cart = lockCart(owner);
         Product product = productService.getEntityById(productId);
         PricingService.ResolvedPrice price = pricingService.resolve(product, countryCode);
 
+        // Match on boxType too: a plain shop add must NOT increment an existing
+        // SMALL_BOX/BIG_BOX line for the same product (it would inflate the box
+        // qty and overwrite its snapshot price with the shop price).
         CartItem existing = cart.getItems().stream()
-                .filter(i -> product.equals(i.getProduct()))
+                .filter(i -> product.equals(i.getProduct()) && i.getBoxType() == null)
                 .findFirst()
                 .orElse(null);
 
         if (existing != null) {
-            existing.setQty(existing.getQty() + qty);
+            long summed = (long) existing.getQty() + qty;
+            if (summed > 999) {
+                throw new BadRequestException("Quantity limit is 999 per item");
+            }
+            existing.setQty((int) summed);
             existing.setUnitPriceSnapshot(price.price());
             existing.setOldPriceSnapshot(price.oldPrice());
         } else {
@@ -223,6 +234,9 @@ public class CartService {
     }
 
     public CartDto updateItemQty(CartOwner owner, UUID itemId, int qty, BigDecimal weightKg) {
+        if (qty < 1 || qty > 999) {
+            throw new BadRequestException("Quantity must be between 1 and 999");
+        }
         Cart cart = lockCart(owner);
         CartItem item = cartItemRepository
                 .findByIdAndCartId(itemId, cart.getId())
@@ -268,7 +282,9 @@ public class CartService {
                         .findFirst()
                         .orElse(null);
                 if (existing != null) {
-                    existing.setQty(existing.getQty() + guestItem.getQty());
+                    // long math + ceiling: never let a legacy/huge line overflow int on merge
+                    long merged = (long) existing.getQty() + guestItem.getQty();
+                    existing.setQty((int) Math.min(999L, merged));
                     if (guestItem.getWeightKg() != null) {
                         BigDecimal base = existing.getWeightKg() != null ? existing.getWeightKg() : BigDecimal.ZERO;
                         existing.setWeightKg(base.add(guestItem.getWeightKg()));

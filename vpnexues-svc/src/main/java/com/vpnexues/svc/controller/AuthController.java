@@ -82,6 +82,16 @@ public class AuthController {
             if (claims == null || !req.firebaseUid().equals(claims.getSubject())) {
                 throw new com.vpnexues.svc.exception.BadRequestException("Invalid Firebase session");
             }
+            // The token's phone_number claim is the ONLY trustworthy source of the
+            // verified phone: without this check an attacker who verifies OTP for
+            // their own number could pass a victim's phone in the body and have
+            // their fresh Firebase UID linked to (and a session issued for) the
+            // victim's account row.
+            Object tokenPhone = claims.get("phone_number");
+            if (tokenPhone == null || !req.phone().equals(tokenPhone.toString())) {
+                throw new com.vpnexues.svc.exception.BadRequestException(
+                        "Phone number does not match the verified Firebase session");
+            }
             user = customerAuthService.verifyWithFirebase(req.firebaseUid(), req.phone(), req.name(), req.email());
         } else {
             // Legacy mode: verify OTP via backend provider

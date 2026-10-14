@@ -1,5 +1,7 @@
 package com.vpnexues.svc.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -13,5 +15,11 @@ import java.util.UUID;
  * value for that product+boxType line, not an increment.
  */
 public record AddCartItemRequest(
-        @NotNull UUID productId, @Positive int qty, String boxType, @PositiveOrZero BigDecimal weightKg) {
+        @NotNull UUID productId,
+        // @Max(999): addItem does an unchecked int increment (existing + qty) — two
+        // adds of ~1.07B each overflowed to a NEGATIVE qty, which flipped lineTotal
+        // negative, bypassed the stock check and clamped grandTotal to zero.
+        @Min(1) @Max(999) int qty,
+        String boxType,
+        @PositiveOrZero BigDecimal weightKg) {
 }

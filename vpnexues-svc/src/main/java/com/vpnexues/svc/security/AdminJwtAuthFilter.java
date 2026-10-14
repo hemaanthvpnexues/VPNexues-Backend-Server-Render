@@ -55,7 +55,10 @@ public class AdminJwtAuthFilter extends OncePerRequestFilter {
                 return;
             }
 
-            String role = claims.get("role", String.class);
+            // Role comes from the DB row already loaded above, NOT the JWT claim:
+            // a claim-stamped role lives until token expiry (30 min), so a SUPER_ADMIN
+            // demoted to SUB_ADMIN kept full authority for the rest of the session.
+            String role = admin.getRole() != null ? admin.getRole().name() : null;
 
             List<GrantedAuthority> authorities = new ArrayList<>();
             authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));

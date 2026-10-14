@@ -27,6 +27,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -41,7 +42,25 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final BigDecimal NON_IN_DELIVERY_FEE = BigDecimal.valueOf(8);
+    /** QA-12: delivery charge when the cart is under the free-delivery threshold.
+     *  Fee is in the order's own currency (mirrors the UI) — a flat 40 read as
+     *  $40/د.إ40 for foreign carts, larger than the free threshold itself. */
+    private static final BigDecimal DEFAULT_DELIVERY_FEE = BigDecimal.valueOf(40);
+    private static final Map<String, BigDecimal> DELIVERY_FEES = Map.of(
+            "IN", BigDecimal.valueOf(40),
+            "SG", BigDecimal.valueOf(5),
+            "US", BigDecimal.valueOf(5),
+            "AE", BigDecimal.valueOf(15));
+    private static final BigDecimal DEFAULT_FREE_DELIVERY_THRESHOLD = BigDecimal.valueOf(1000);
+    /** Country → cart subtotal at/above which delivery is free (mirrors the UI). */
+    private static final Map<String, BigDecimal> FREE_DELIVERY_THRESHOLDS = Map.of(
+            "IN", BigDecimal.valueOf(1000),
+            "SG", BigDecimal.valueOf(20),
+            "US", BigDecimal.valueOf(15),
+            "AE", BigDecimal.valueOf(60));
+    /** Markets a checkout may declare — validates the client-supplied country param. */
+    private static final java.util.Set<String> SUPPORTED_COUNTRIES =
+            java.util.Set.of("IN", "SG", "US", "AE", "LK", "MY");
     /** Customers may self-cancel only inside this window after placing the order. */
     private static final Duration CANCEL_WINDOW = Duration.ofHours(1);
 
@@ -55,6 +74,13 @@ public class OrderService {
     private final AddressService addressService;
 
     public OrderDto checkout(UUID userId, String countryCode, CheckoutRequest req) {
+        // The country drives fee/threshold lookup AND is stamped on the order (routing to
+        // the right sub-admin), so an unvalidated client value (?country=ABCDE) used to
+        // produce a 500 on varchar(4) and arbitrary markets could pick foreign thresholds.
+        countryCode = countryCode == null ? "" : countryCode.trim().toUpperCase(Locale.ROOT);
+        if (!SUPPORTED_COUNTRIES.contains(countryCode)) {
+            throw new BadRequestException("Unsupported country: " + countryCode);
+        }
         CartOwner owner = CartOwner.ofUser(userId);
         CartDto cart = cartService.getCart(owner, countryCode);
         if (cart.items().isEmpty()) {
@@ -118,7 +144,14 @@ public class OrderService {
                         ? OrderChannel.SMALL_BOX
                         : OrderChannel.SHOP;
 
-        BigDecimal deliveryFee = "IN".equalsIgnoreCase(countryCode) ? BigDecimal.ZERO : NON_IN_DELIVERY_FEE;
+        BigDecimal freeDeliveryThreshold = FREE_DELIVERY_THRESHOLDS.getOrDefault(
+                countryCode == null ? "" : countryCode.toUpperCase(Locale.ROOT),
+                DEFAULT_FREE_DELIVERY_THRESHOLD);
+        BigDecimal deliveryFee = itemTotal.compareTo(freeDeliveryThreshold) >= 0
+                ? BigDecimal.ZERO
+                : DELIVERY_FEES.getOrDefault(
+                        countryCode == null ? "" : countryCode.toUpperCase(Locale.ROOT),
+                        DEFAULT_DELIVERY_FEE);
         BigDecimal tax = BigDecimal.ZERO;
         BigDecimal tip = req.tip() != null ? req.tip() : BigDecimal.ZERO;
         BigDecimal grandTotal =

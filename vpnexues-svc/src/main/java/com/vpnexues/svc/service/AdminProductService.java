@@ -100,7 +100,6 @@ public class AdminProductService {
         String region = StringUtils.hasText(req.countryCode()) ? req.countryCode().trim().toUpperCase() : null;
         product.setName(req.name());
         product.setCategory(req.category());
-        product.setDescription(req.description());
         // With countryCode the price edits target that market's override (what the shop reads
         // for that region); the SGD base stays untouched so other regions don't shift.
         if (region == null) {
@@ -108,8 +107,17 @@ public class AdminProductService {
             product.setOldPrice(req.oldPrice());
         }
         product.setUnit(req.unit());
-        product.setImageUrl(req.imageUrl());
-        product.setDiscountPct(req.discountPct());
+        // Price-only updates (sub-admin drawer, super-admin confirm) omit these fields;
+        // overwriting unconditionally used to wipe image/description/discount with null.
+        if (StringUtils.hasText(req.imageUrl())) {
+            product.setImageUrl(req.imageUrl());
+        }
+        if (req.description() != null) {
+            product.setDescription(req.description());
+        }
+        if (req.discountPct() != null) {
+            product.setDiscountPct(req.discountPct());
+        }
         // Mutate the existing (mutable) collection in place — replacing it with List.of()
         // made Hibernate's flush throw UnsupportedOperationException (500 on every
         // update that omitted badges, i.e. the admin's price edits and form saves).
@@ -117,7 +125,9 @@ public class AdminProductService {
             product.getBadges().clear();
             product.getBadges().addAll(req.badges());
         }
-        product.setActive(req.active());
+        if (req.active() != null) {
+            product.setActive(req.active());
+        }
         Product saved = productRepository.save(product);
         if (region != null) {
             upsertRegionPrice(saved, region, req.basePrice(), req.oldPrice());
