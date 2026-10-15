@@ -32,6 +32,22 @@ public class AdminUser extends BaseEntity {
     @Column(name = "country_code", length = 2)
     private String countryCode;
 
+    /** Contact number collected on the Add/Edit Sub Admin form. */
+    @Column(length = 20)
+    private String phone;
+
+    /**
+     * Comma-separated module keys this admin may access (dashboard, orders, products,
+     * users, reports, payments, support, content). NULL/blank = legacy account = full
+     * access; see AdminAccessService.
+     */
+    @Column(length = 255)
+    private String modules;
+
+    /** Comma-separated action keys (view, edit, delete, export). NULL/blank = full permission within granted modules. */
+    @Column(length = 255)
+    private String permissions;
+
     @Column(name = "token_version", nullable = false)
     private int tokenVersion = 0;
 

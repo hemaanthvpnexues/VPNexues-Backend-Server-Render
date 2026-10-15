@@ -10,6 +10,7 @@ import com.vpnexues.svc.repository.AdminUserRepository;
 import com.vpnexues.svc.security.CookieNames;
 import com.vpnexues.svc.security.CookieUtil;
 import com.vpnexues.svc.security.JwtService;
+import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.AdminAuditService;
 import com.vpnexues.svc.service.AdminAuthService;
 import com.vpnexues.svc.service.AdminSessionService;
@@ -105,7 +106,9 @@ public class AdminAuthController {
         if (admin.isMustChangePassword()) {
             AdminSessionDto dto = toDto(admin);
             // Add a flag — the frontend can redirect to password change page
-            return new AdminSessionDto(dto.id(), dto.email(), dto.name(), dto.role(), dto.countryCode());
+            return new AdminSessionDto(
+                    dto.id(), dto.email(), dto.name(), dto.role(), dto.countryCode(),
+                    dto.modules(), dto.permissions());
         }
 
         return toDto(admin);
@@ -225,7 +228,9 @@ public class AdminAuthController {
     }
 
     private AdminSessionDto toDto(AdminUser a) {
-        return new AdminSessionDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.getCountryCode());
+        return new AdminSessionDto(
+                a.getId(), a.getEmail(), a.getName(), a.getRole(), a.getCountryCode(),
+                AdminAccessService.splitCsv(a.getModules()), AdminAccessService.splitCsv(a.getPermissions()));
     }
 
     private String extractClientIp(HttpServletRequest request) {

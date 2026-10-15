@@ -11,12 +11,14 @@ import com.vpnexues.svc.entity.SupportChatMessage;
 import com.vpnexues.svc.entity.SupportChatSession;
 import com.vpnexues.svc.repository.SupportChatMessageRepository;
 import com.vpnexues.svc.repository.SupportChatSessionRepository;
+import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.SupportChatService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -40,6 +42,7 @@ public class SupportChatController {
     private final SupportChatService supportChatService;
     private final SupportChatSessionRepository sessionRepository;
     private final SupportChatMessageRepository messageRepository;
+    private final AdminAccessService accessService;
 
     // ── Guest ──────────────────────────────────────────────────────────────
 
@@ -73,27 +76,33 @@ public class SupportChatController {
     // ── Admin ──────────────────────────────────────────────────────────────
 
     @GetMapping("/api/admin/support-chats")
-    public List<ChatSessionDto> list(@RequestParam(required = false) ChatSessionStatus status) {
+    public List<ChatSessionDto> list(
+            @RequestParam(required = false) ChatSessionStatus status, @AuthenticationPrincipal UUID adminId) {
+        accessService.requireRead(adminId, AdminAccessService.M_SUPPORT);
         return supportChatService.list(status);
     }
 
     @PostMapping("/api/admin/support-chats/{id}/reply")
     @ResponseStatus(HttpStatus.CREATED)
     public ChatMessageDto reply(
-            @PathVariable UUID id, @RequestBody @Valid PostChatMessageRequest req) {
+            @PathVariable UUID id, @RequestBody @Valid PostChatMessageRequest req,
+            @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_SUPPORT, AdminAccessService.P_EDIT);
         return supportChatService.postMessage(
                 id, new PostChatMessageRequest(ChatMessageSender.ADMIN.name(), req.body()));
     }
 
     @PutMapping("/api/admin/support-chats/{id}/status")
     public ChatSessionDto updateStatus(
-            @PathVariable UUID id, @RequestParam ChatSessionStatus status) {
+            @PathVariable UUID id, @RequestParam ChatSessionStatus status, @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_SUPPORT, AdminAccessService.P_EDIT);
         return supportChatService.updateStatus(id, status);
     }
 
     @DeleteMapping("/api/admin/support-chats/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_SUPPORT, AdminAccessService.P_DELETE);
         supportChatService.delete(id);
     }
 

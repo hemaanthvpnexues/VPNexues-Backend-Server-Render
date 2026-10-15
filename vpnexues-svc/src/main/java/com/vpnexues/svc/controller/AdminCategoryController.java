@@ -3,12 +3,14 @@ package com.vpnexues.svc.controller;
 import com.vpnexues.svc.dto.CategoryDto;
 import com.vpnexues.svc.dto.CreateCategoryRequest;
 import com.vpnexues.svc.dto.UpdateCategoryRequest;
+import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.CategoryService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,26 +25,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminCategoryController {
 
     private final CategoryService categoryService;
+    private final AdminAccessService accessService;
 
     @GetMapping("/api/admin/categories")
-    public List<CategoryDto> list() {
+    public List<CategoryDto> list(@AuthenticationPrincipal UUID adminId) {
+        accessService.requireAnyRead(adminId, AdminAccessService.M_PRODUCTS, AdminAccessService.M_CONTENT);
         return categoryService.list();
     }
 
     @PostMapping("/api/admin/categories")
     @ResponseStatus(HttpStatus.CREATED)
-    public CategoryDto create(@RequestBody @Valid CreateCategoryRequest req) {
+    public CategoryDto create(@RequestBody @Valid CreateCategoryRequest req, @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_PRODUCTS, AdminAccessService.P_EDIT);
         return categoryService.create(req);
     }
 
     @PutMapping("/api/admin/categories/{id}")
-    public CategoryDto update(@PathVariable UUID id, @RequestBody @Valid UpdateCategoryRequest req) {
+    public CategoryDto update(
+            @PathVariable UUID id, @RequestBody @Valid UpdateCategoryRequest req, @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_PRODUCTS, AdminAccessService.P_EDIT);
         return categoryService.update(id, req);
     }
 
     @DeleteMapping("/api/admin/categories/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal UUID adminId) {
+        accessService.requirePermission(adminId, AdminAccessService.M_PRODUCTS, AdminAccessService.P_DELETE);
         categoryService.delete(id);
     }
 }

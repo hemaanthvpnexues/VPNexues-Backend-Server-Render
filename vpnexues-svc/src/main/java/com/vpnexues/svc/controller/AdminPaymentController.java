@@ -3,8 +3,11 @@ package com.vpnexues.svc.controller;
 import com.vpnexues.svc.dto.AdminPaymentDto;
 import com.vpnexues.svc.entity.Payment;
 import com.vpnexues.svc.repository.PaymentRepository;
+import com.vpnexues.svc.service.AdminAccessService;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -13,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminPaymentController {
 
     private final PaymentRepository paymentRepository;
+    private final AdminAccessService accessService;
 
     @GetMapping("/api/admin/payments")
-    public List<AdminPaymentDto> list() {
+    public List<AdminPaymentDto> list(@AuthenticationPrincipal UUID adminId) {
+        accessService.requireRead(adminId, AdminAccessService.M_PAYMENTS);
         return paymentRepository.findAllWithOrderAndUser().stream().map(this::toDto).toList();
     }
 

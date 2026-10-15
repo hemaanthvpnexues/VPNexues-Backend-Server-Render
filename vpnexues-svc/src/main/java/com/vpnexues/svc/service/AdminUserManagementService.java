@@ -31,7 +31,12 @@ public class AdminUserManagementService {
     private final AdminLoginAuditRepository adminLoginAuditRepository;
 
     /** Valid country codes for SUB_ADMIN roles. */
-    private static final Set<String> VALID_COUNTRY_CODES = Set.of("IN", "AE", "US", "SG");
+    private static final Set<String> VALID_COUNTRY_CODES = Set.of("IN", "AE", "US", "SG", "LK");
+
+    /** Module/permission keys the super admin may grant — anything else in the request is dropped. */
+    private static final Set<String> VALID_MODULES =
+            Set.of("dashboard", "orders", "products", "users", "reports", "payments", "support", "content");
+    private static final Set<String> VALID_PERMISSIONS = Set.of("view", "edit", "delete", "export");
 
     @Transactional(readOnly = true)
     public List<AdminUserSummaryDto> list() {
@@ -70,7 +75,7 @@ public class AdminUserManagementService {
             if (req.countryCode() == null || req.countryCode().isBlank()
                     || !VALID_COUNTRY_CODES.contains(req.countryCode().toUpperCase())) {
                 throw new BadRequestException(
-                        "SUB_ADMIN requires a valid country code. Allowed: IN, AE, US, SG");
+                        "SUB_ADMIN requires a valid country code. Allowed: IN, AE, US, SG, LK");
             }
         }
 
@@ -79,6 +84,9 @@ public class AdminUserManagementService {
         admin.setPasswordHash(passwordEncoder.encode(req.password()));
         admin.setName(req.name());
         admin.setRole(req.role());
+        admin.setPhone(blankToNull(req.phone()));
+        admin.setModules(sanitize(req.modules(), VALID_MODULES));
+        admin.setPermissions(sanitize(req.permissions(), VALID_PERMISSIONS));
         if (req.countryCode() != null && !req.countryCode().isBlank()) {
             admin.setCountryCode(req.countryCode().toUpperCase());
         }
@@ -104,7 +112,7 @@ public class AdminUserManagementService {
             if (req.countryCode() == null || req.countryCode().isBlank()
                     || !VALID_COUNTRY_CODES.contains(req.countryCode().toUpperCase())) {
                 throw new BadRequestException(
-                        "SUB_ADMIN requires a valid country code. Allowed: IN, AE, US, SG");
+                        "SUB_ADMIN requires a valid country code. Allowed: IN, AE, US, SG, LK");
             }
         }
 
@@ -114,6 +122,9 @@ public class AdminUserManagementService {
         admin.setName(req.name());
         admin.setRole(req.role());
         admin.setActive(req.active());
+        admin.setPhone(blankToNull(req.phone()));
+        admin.setModules(sanitize(req.modules(), VALID_MODULES));
+        admin.setPermissions(sanitize(req.permissions(), VALID_PERMISSIONS));
         if (req.countryCode() != null && !req.countryCode().isBlank()) {
             admin.setCountryCode(req.countryCode().toUpperCase());
         } else {
@@ -131,7 +142,28 @@ public class AdminUserManagementService {
     }
 
     private AdminUserSummaryDto toDto(AdminUser a, Instant lastLogin) {
-        return new AdminUserSummaryDto(a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode(), lastLogin);
+        return new AdminUserSummaryDto(
+                a.getId(), a.getEmail(), a.getName(), a.getRole(), a.isActive(), a.getCountryCode(),
+                a.getPhone(), AdminAccessService.splitCsv(a.getModules()),
+                AdminAccessService.splitCsv(a.getPermissions()), lastLogin);
+    }
+
+    /** Keeps only known keys, lowercased, deduped; null when nothing valid remains (legacy full access). */
+    private static String sanitize(List<String> values, Set<String> allowed) {
+        if (values == null) {
+            return null;
+        }
+        String joined = values.stream()
+                .filter(v -> v != null && !v.isBlank())
+                .map(v -> v.trim().toLowerCase())
+                .filter(allowed::contains)
+                .distinct()
+                .collect(java.util.stream.Collectors.joining(","));
+        return joined.isEmpty() ? null : joined;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /** Single-row path (create/update) — one lookup is fine outside the list. */

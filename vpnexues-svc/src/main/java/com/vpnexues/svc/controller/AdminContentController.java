@@ -13,6 +13,7 @@ import com.vpnexues.svc.dto.UploadPhotoResponseDto;
 import com.vpnexues.svc.entity.AdminRole;
 import com.vpnexues.svc.entity.AdminUser;
 import com.vpnexues.svc.repository.AdminUserRepository;
+import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.ContentUploadService;
 import com.vpnexues.svc.service.GalleryService;
 import com.vpnexues.svc.service.NewsService;
@@ -50,6 +51,7 @@ public class AdminContentController {
     private final GalleryService galleryService;
     private final AdminUserRepository adminUserRepository;
     private final ContentUploadService contentUploadService;
+    private final AdminAccessService accessService;
 
     /** Stores a photo on disk under /uploads/** and returns its URL (never a base64 blob).
      * The name (member name / article title) becomes the filename: /uploads/team/nageswaran-duraiswamy.jpg. */
@@ -59,13 +61,13 @@ public class AdminContentController {
             @RequestParam(value = "name", required = false) String name,
             @RequestParam(value = "replace", required = false) String replace,
             @RequestParam(value = "folder", required = false) String folder) throws IOException {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return new UploadPhotoResponseDto(contentUploadService.storePhoto(file, name, replace, folder));
     }
 
     @GetMapping("/api/admin/team-members")
     public List<TeamMemberDto> listTeamMembers(@AuthenticationPrincipal UUID adminId) {
-        requireContentManager(adminId);
+        requireContentRead(adminId);
         return teamMemberService.listAll();
     }
 
@@ -73,27 +75,27 @@ public class AdminContentController {
     @ResponseStatus(HttpStatus.CREATED)
     public TeamMemberDto createTeamMember(@AuthenticationPrincipal UUID adminId,
             @RequestBody @Valid CreateTeamMemberRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return teamMemberService.create(req);
     }
 
     @PutMapping("/api/admin/team-members/{id}")
     public TeamMemberDto updateTeamMember(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id,
             @RequestBody @Valid UpdateTeamMemberRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return teamMemberService.update(id, req);
     }
 
     @DeleteMapping("/api/admin/team-members/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteTeamMember(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id) {
-        requireContentManager(adminId);
+        requireContentDelete(adminId);
         teamMemberService.delete(id);
     }
 
     @GetMapping("/api/admin/news")
     public List<NewsArticleDto> listNews(@AuthenticationPrincipal UUID adminId) {
-        requireContentManager(adminId);
+        requireContentRead(adminId);
         return newsService.listAll();
     }
 
@@ -101,27 +103,27 @@ public class AdminContentController {
     @ResponseStatus(HttpStatus.CREATED)
     public NewsArticleDto createNews(@AuthenticationPrincipal UUID adminId,
             @RequestBody @Valid CreateNewsArticleRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return newsService.create(req);
     }
 
     @PutMapping("/api/admin/news/{id}")
     public NewsArticleDto updateNews(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id,
             @RequestBody @Valid UpdateNewsArticleRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return newsService.update(id, req);
     }
 
     @DeleteMapping("/api/admin/news/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteNews(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id) {
-        requireContentManager(adminId);
+        requireContentDelete(adminId);
         newsService.delete(id);
     }
 
     @GetMapping("/api/admin/gallery-images")
     public List<GalleryImageDto> listGalleryImages(@AuthenticationPrincipal UUID adminId) {
-        requireContentManager(adminId);
+        requireContentRead(adminId);
         return galleryService.listAll();
     }
 
@@ -129,22 +131,39 @@ public class AdminContentController {
     @ResponseStatus(HttpStatus.CREATED)
     public GalleryImageDto createGalleryImage(@AuthenticationPrincipal UUID adminId,
             @RequestBody @Valid CreateGalleryImageRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return galleryService.create(req);
     }
 
     @PutMapping("/api/admin/gallery-images/{id}")
     public GalleryImageDto updateGalleryImage(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id,
             @RequestBody @Valid UpdateGalleryImageRequest req) {
-        requireContentManager(adminId);
+        requireContentEdit(adminId);
         return galleryService.update(id, req);
     }
 
     @DeleteMapping("/api/admin/gallery-images/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteGalleryImage(@AuthenticationPrincipal UUID adminId, @PathVariable UUID id) {
-        requireContentManager(adminId);
+        requireContentDelete(adminId);
         galleryService.delete(id);
+    }
+
+    // ── Module/permission checks (super admin bypasses inside AdminAccessService) ──
+
+    private void requireContentRead(UUID adminId) {
+        requireContentManager(adminId);
+        accessService.requireRead(adminId, AdminAccessService.M_CONTENT);
+    }
+
+    private void requireContentEdit(UUID adminId) {
+        requireContentManager(adminId);
+        accessService.requirePermission(adminId, AdminAccessService.M_CONTENT, AdminAccessService.P_EDIT);
+    }
+
+    private void requireContentDelete(UUID adminId) {
+        requireContentManager(adminId);
+        accessService.requirePermission(adminId, AdminAccessService.M_CONTENT, AdminAccessService.P_DELETE);
     }
 
     /** SUPER_ADMIN manages all countries; every other admin must be the India (IN) sub-admin. */

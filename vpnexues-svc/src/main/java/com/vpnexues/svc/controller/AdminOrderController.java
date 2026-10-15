@@ -6,6 +6,7 @@ import com.vpnexues.svc.dto.PageResponse;
 import com.vpnexues.svc.dto.UpdateOrderStatusRequest;
 import com.vpnexues.svc.entity.OrderChannel;
 import com.vpnexues.svc.entity.OrderStatus;
+import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.AdminOrderService;
 import jakarta.validation.Valid;
 import java.time.Instant;
@@ -31,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminOrderController {
 
     private final AdminOrderService adminOrderService;
+    private final AdminAccessService accessService;
 
     @GetMapping("/api/admin/orders")
     public PageResponse<AdminOrderSummaryDto> list(
@@ -43,6 +45,7 @@ public class AdminOrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UUID requestingAdminId) {
+        accessService.requireRead(requestingAdminId, AdminAccessService.M_ORDERS);
         size = Math.min(Math.max(1, size), 200);
         Instant createdFrom = dateFrom == null ? null : dateFrom.atStartOfDay(ZoneOffset.UTC).toInstant();
         // Exclusive upper bound one day past dateTo so the whole day is included.
@@ -66,6 +69,7 @@ public class AdminOrderController {
     @GetMapping("/api/admin/orders/{id}")
     public AdminOrderDetailDto get(
             @PathVariable UUID id, @AuthenticationPrincipal UUID requestingAdminId) {
+        accessService.requireRead(requestingAdminId, AdminAccessService.M_ORDERS);
         return adminOrderService.get(id, requestingAdminId);
     }
 
@@ -75,6 +79,7 @@ public class AdminOrderController {
             @PathVariable UUID id,
             @RequestBody @Valid UpdateOrderStatusRequest req,
             @AuthenticationPrincipal UUID requestingAdminId) {
+        accessService.requirePermission(requestingAdminId, AdminAccessService.M_ORDERS, AdminAccessService.P_EDIT);
         return adminOrderService.updateStatus(id, req.status(), requestingAdminId);
     }
 }
