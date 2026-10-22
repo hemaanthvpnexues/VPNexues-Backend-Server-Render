@@ -54,6 +54,18 @@ public class AdminUser extends BaseEntity {
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword = false;
 
+    /**
+     * Feature B scope flag (V51): does login require the Super Admin's one-time access
+     * pass on top of the password?
+     *
+     * <p>TRUE for every account created after V51 — the "5th sub-admin onward" rule. The
+     * four pre-existing country sub-admins (IN / USA / AED / SG) were backfilled to FALSE
+     * by that migration and keep signing in with the password alone. SUPER_ADMIN never
+     * needs a pass regardless of this flag — see AdminAuthController step 2.5.
+     */
+    @Column(name = "access_pass_required", nullable = false)
+    private boolean accessPassRequired = true;
+
     @Column(nullable = false)
     private boolean active = true;
 }

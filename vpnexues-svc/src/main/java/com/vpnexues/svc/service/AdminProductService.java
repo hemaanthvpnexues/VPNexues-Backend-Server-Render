@@ -142,6 +142,22 @@ public class AdminProductService {
         productRepository.save(product);
     }
 
+    /**
+     * Show or hide a product on the storefront. Deliberately writes <i>only</i> the
+     * {@code active} flag: no price, description or region override is touched, so a
+     * visibility change can never alter what a shop is charging.
+     *
+     * <p>Every public product query is {@code active = true}, so hiding takes effect on the
+     * shop immediately while the admin list (unfiltered) keeps showing the row so it can be
+     * brought back.
+     */
+    public AdminProductDto setVisibility(UUID id, boolean active) {
+        Product product = getEntity(id);
+        product.setActive(active);
+        Product saved = productRepository.save(product);
+        return toDto(saved, loadOverrides(List.of(saved.getId())));
+    }
+
     /** Create-or-update the market override so the shop for that region shows the new price. */
     private void upsertRegionPrice(Product product, String region, BigDecimal price, BigDecimal requestedOld) {
         ProductPriceOverride o = priceOverrideRepository

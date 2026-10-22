@@ -35,6 +35,19 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
     }
 
+    /**
+     * Non-deliverable city at checkout → 409 with machine-readable markers so
+     * the UI can route to the "Coming Soon" page instead of showing a generic
+     * place-order failure. Thrown before any order/payment is persisted.
+     */
+    @ExceptionHandler(DeliveryUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleDeliveryUnavailable(DeliveryUnavailableException ex) {
+        Map<String, Object> body = envelope(HttpStatus.CONFLICT, ex.getMessage());
+        body.put("code", "DELIVERY_NOT_AVAILABLE");
+        body.put("city", ex.getCity() == null ? "" : ex.getCity());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleMalformedBody(
             org.springframework.http.converter.HttpMessageNotReadableException ex) {
@@ -88,6 +101,10 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
+        return ResponseEntity.status(status).body(envelope(status, message));
+    }
+
+    private Map<String, Object> envelope(HttpStatus status, String message) {
         Map<String, Object> body = new LinkedHashMap<>();
         // Uniform error envelope: every failure body carries success=false + the human message.
         body.put("success", false);
@@ -95,6 +112,6 @@ public class GlobalExceptionHandler {
         body.put("status", status.value());
         body.put("error", status.getReasonPhrase());
         body.put("message", message);
-        return ResponseEntity.status(status).body(body);
+        return body;
     }
 }

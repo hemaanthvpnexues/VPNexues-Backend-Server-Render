@@ -10,6 +10,7 @@ import com.vpnexues.svc.repository.AdminUserRepository;
 import com.vpnexues.svc.security.CookieNames;
 import com.vpnexues.svc.security.CookieUtil;
 import com.vpnexues.svc.security.JwtService;
+import com.vpnexues.svc.service.AdminAccessPassService;
 import com.vpnexues.svc.service.AdminAccessService;
 import com.vpnexues.svc.service.AdminAuditService;
 import com.vpnexues.svc.service.AdminAuthService;
@@ -43,6 +44,7 @@ public class AdminAuthController {
     private final LoginAttemptService loginAttemptService;
     private final AdminAuditService auditService;
     private final AdminSessionService sessionService;
+    private final AdminAccessPassService accessPassService;
 
     @Value("${app.cookie.secure:false}")
     private boolean secureCookies;
@@ -74,6 +76,27 @@ public class AdminAuthController {
                 throw new BadRequestException("Account locked due to too many failed attempts. Try again later.");
             }
             throw e;
+        }
+
+        // 2.5 Feature B — one-time access pass gate for delegated admins.
+        // Password matched, but no session is issued until the pass from the
+        // Super Admin is entered too. Scope (requiresPass): SUPER_ADMIN and the
+        // four pre-existing country sub-admins (IN/USA/AED/SG) are exempt — only
+        // accounts added after V51 (the "5th sub-admin onward") are gated.
+        // Anything thrown here is audited inside verifyForLogin with its own reason code.
+        if (accessPassService.requiresPass(admin)) {
+            try {
+                accessPassService.verifyForLogin(admin, req.passcode(), request);
+            } catch (BadRequestException e) {
+                // Wrong passcodes share the same brute-force budget as wrong passwords.
+                boolean nowLocked = loginAttemptService.recordFailedAttempt(email);
+                if (nowLocked) {
+                    auditService.recordSecurityEvent(email, "RATE_LIMITED", request);
+                    throw new BadRequestException(
+                            "Account locked due to too many failed attempts. Try again later.");
+                }
+                throw e;
+            }
         }
 
         // 3. Clear failed attempts on success

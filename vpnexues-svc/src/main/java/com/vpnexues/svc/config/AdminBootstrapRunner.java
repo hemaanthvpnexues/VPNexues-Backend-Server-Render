@@ -43,13 +43,18 @@ public class AdminBootstrapRunner implements ApplicationRunner {
             return;
         }
 
+        // Same normalisation as AdminUserManagementService.create(): login looks
+        // addresses up lower-cased, so a mixed-case bootstrap address would be
+        // unreachable for the one account that can never be re-created.
+        String email = bootstrapEmail.trim().toLowerCase();
+
         AdminUser admin = new AdminUser();
-        admin.setEmail(bootstrapEmail);
+        admin.setEmail(email);
         admin.setPasswordHash(passwordEncoder.encode(bootstrapPassword));
         admin.setName("Super Admin");
         admin.setRole(AdminRole.SUPER_ADMIN);
         admin.setMustChangePassword(true);
         adminUserRepository.save(admin);
-        log.info("Bootstrapped initial SUPER_ADMIN account: {} (mustChangePassword=true)", bootstrapEmail);
+        log.info("Bootstrapped initial SUPER_ADMIN account: {} (mustChangePassword=true)", email);
     }
 }

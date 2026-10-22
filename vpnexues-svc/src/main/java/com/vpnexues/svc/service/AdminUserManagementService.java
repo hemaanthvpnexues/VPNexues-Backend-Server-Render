@@ -9,6 +9,7 @@ import com.vpnexues.svc.exception.BadRequestException;
 import com.vpnexues.svc.exception.NotFoundException;
 import com.vpnexues.svc.repository.AdminLoginAuditRepository;
 import com.vpnexues.svc.repository.AdminUserRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -29,14 +30,15 @@ public class AdminUserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final AdminSessionService sessionService;
     private final AdminLoginAuditRepository adminLoginAuditRepository;
+    private final AdminAuditService adminAuditService;
 
     /** Valid country codes for SUB_ADMIN roles. */
     private static final Set<String> VALID_COUNTRY_CODES = Set.of("IN", "AE", "US", "SG", "LK");
 
     /** Module/permission keys the super admin may grant — anything else in the request is dropped. */
     private static final Set<String> VALID_MODULES =
-            Set.of("dashboard", "orders", "products", "users", "reports", "payments", "support", "content");
-    private static final Set<String> VALID_PERMISSIONS = Set.of("view", "edit", "delete", "export");
+            Set.of("dashboard", "orders", "products", "users", "reports", "payments", "support", "content", "careers");
+    private static final Set<String> VALID_PERMISSIONS = Set.of("view", "edit", "delete", "export", "hide");
 
     @Transactional(readOnly = true)
     public List<AdminUserSummaryDto> list() {
@@ -59,8 +61,12 @@ public class AdminUserManagementService {
     }
 
     public AdminUserSummaryDto create(CreateAdminUserRequest req) {
-        if (adminUserRepository.findByEmail(req.email()).isPresent()) {
-            throw new BadRequestException("An admin account with email '" + req.email() + "' already exists");
+        // Normalised once and reused for both the duplicate check and the stored
+        // value: login looks addresses up lower-cased, so a row saved with any
+        // capital letter would be unreachable from then on (see V52).
+        String email = normalizeEmail(req.email());
+        if (adminUserRepository.findByEmail(email).isPresent()) {
+            throw new BadRequestException("An admin account with email '" + email + "' already exists");
         }
 
         // Prevent creation of additional SUPER_ADMIN accounts through the API.
@@ -80,10 +86,14 @@ public class AdminUserManagementService {
         }
 
         AdminUser admin = new AdminUser();
-        admin.setEmail(req.email());
+        admin.setEmail(email);
         admin.setPasswordHash(passwordEncoder.encode(req.password()));
         admin.setName(req.name());
         admin.setRole(req.role());
+        // Feature B: accounts added from here on are the "5th sub-admin onward", so
+        // they need the Super Admin's one-time pass at every login (V51 exempted the
+        // four pre-existing country sub-admins — editing those never flips this back).
+        admin.setAccessPassRequired(true);
         admin.setPhone(blankToNull(req.phone()));
         admin.setModules(sanitize(req.modules(), VALID_MODULES));
         admin.setPermissions(sanitize(req.permissions(), VALID_PERMISSIONS));
@@ -91,6 +101,15 @@ public class AdminUserManagementService {
             admin.setCountryCode(req.countryCode().toUpperCase());
         }
         return toDto(adminUserRepository.save(admin));
+    }
+
+    /**
+     * Admin addresses are looked up lower-cased at login, so they must be stored that way too —
+     * otherwise the row can never be found again. Trimming keeps the duplicate check honest
+     * against a stray trailing space.
+     */
+    private static String normalizeEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase();
     }
 
     /** requestingAdminId prevents a SUPER_ADMIN from deactivating/demoting their own account by accident. */
@@ -139,6 +158,35 @@ public class AdminUserManagementService {
         }
 
         return toDto(saved);
+    }
+
+    /**
+     * Permanently removes an admin account.
+     *
+     * <p>Two guards protect the super-admin seat: the caller cannot delete their own account,
+     * and no SUPER_ADMIN row may be removed through this endpoint at all — so the panel can
+     * never lock itself out.
+     *
+     * <p>Access passes and refresh tokens are dropped with the account (FK CASCADE); the
+     * login-audit trail keeps its rows with {@code admin_id} nulled, so what this account
+     * actually did stays readable after it is gone.
+     */
+    public void delete(UUID id, UUID requestingAdminId, HttpServletRequest request) {
+        if (id.equals(requestingAdminId)) {
+            throw new BadRequestException("You cannot delete your own account");
+        }
+        AdminUser admin = adminUserRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Admin user not found: " + id));
+        if (admin.getRole() == AdminRole.SUPER_ADMIN) {
+            throw new BadRequestException("SUPER_ADMIN accounts cannot be deleted");
+        }
+
+        String email = admin.getEmail();
+        // Revoke live sessions before the row goes — a still-valid JWT must not
+        // outlive the account it belongs to.
+        sessionService.revokeAllSessions(id);
+        adminUserRepository.delete(admin);
+        adminAuditService.recordSecurityEvent(email, "ADMIN_USER_DELETED", request);
     }
 
     private AdminUserSummaryDto toDto(AdminUser a, Instant lastLogin) {

@@ -1,0 +1,23 @@
+-- V52: store admin_users.email lower-cased.
+--
+-- Login lower-cases the submitted address before looking it up
+-- (AdminAuthController.login: req.email().toLowerCase().trim()), but
+-- AdminUserManagementService.create() persisted whatever casing the Add Sub
+-- Admin form happened to contain. admin_users.email is a plain VARCHAR UNIQUE
+-- (V2), so the derived findByEmail() match was case-sensitive and an account
+-- saved with a capital letter could never be found again.
+--
+-- That failure surfaced at the email-lookup step with "Invalid email or
+-- password" — two steps *before* the Feature B access-pass gate — which is why
+-- entering a perfectly correct one-time pass changed nothing: verifyForLogin()
+-- was never reached.
+--
+-- Data-only, no DDL: ddl-auto: validate is unaffected. The WHERE clause makes
+-- it a no-op on an already-clean database, so it is safe to re-run.
+--
+-- N.B. the UNIQUE constraint on this column is itself case-sensitive, so a pair
+-- such as 'Sam@x' and 'sam@x' can technically co-exist. If this UPDATE ever
+-- fails on a unique violation, that duplicate is a genuine data problem —
+-- resolve it by hand rather than re-running the migration.
+
+UPDATE admin_users SET email = lower(email) WHERE email <> lower(email);

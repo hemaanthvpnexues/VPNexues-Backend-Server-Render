@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Grants live on {@code admin_users} as comma-separated keys:
  * <ul>
- *   <li>{@code modules} — dashboard, orders, products, users, reports, payments, support, content</li>
+ *   <li>{@code modules} — dashboard, orders, products, users, reports, payments, support, content, careers</li>
  *   <li>{@code permissions} — view, edit, delete, export</li>
  * </ul>
  *
@@ -44,11 +44,15 @@ public class AdminAccessService {
     public static final String M_PAYMENTS = "payments";
     public static final String M_SUPPORT = "support";
     public static final String M_CONTENT = "content";
+    public static final String M_CAREERS = "careers";
 
     public static final String P_VIEW = "view";
     public static final String P_EDIT = "edit";
     public static final String P_DELETE = "delete";
     public static final String P_EXPORT = "export";
+    /** Show/hide a product on the storefront — deliberately separate from P_EDIT so a
+     *  sub-admin can manage visibility without also being able to change prices. */
+    public static final String P_HIDE = "hide";
 
     private final AdminUserRepository adminUserRepository;
 
@@ -92,6 +96,30 @@ public class AdminAccessService {
         }
         throw new AccessDeniedException(
                 "You do not have '" + permission + "' permission on the '" + module + "' module.");
+    }
+
+    /**
+     * Module access plus <i>at least one of</i> several permissions — used where two grants
+     * legitimately cover the same action (product visibility: either "hide" or a full "edit").
+     * A legacy account with a blank permission column is unrestricted and passes via
+     * {@link #isUnrestricted}.
+     */
+    @Transactional(readOnly = true)
+    public void requireAnyPermission(UUID adminId, String module, String... permissions) {
+        AdminUser admin = load(adminId);
+        if (isUnrestricted(admin)) {
+            return;
+        }
+        if (!hasModule(admin, module)) {
+            throw denied(module);
+        }
+        for (String permission : permissions) {
+            if (contains(admin.getPermissions(), permission)) {
+                return;
+            }
+        }
+        throw new AccessDeniedException(
+                "You do not have permission on the '" + module + "' module.");
     }
 
     private AdminUser load(UUID adminId) {

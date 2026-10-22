@@ -4,6 +4,7 @@ import com.vpnexues.svc.dto.AdminUserSummaryDto;
 import com.vpnexues.svc.dto.CreateAdminUserRequest;
 import com.vpnexues.svc.dto.UpdateAdminUserRequest;
 import com.vpnexues.svc.service.AdminUserManagementService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,5 +46,13 @@ public class AdminUserManagementController {
             @RequestBody @Valid UpdateAdminUserRequest req,
             @AuthenticationPrincipal UUID requestingAdminId) {
         return adminUserManagementService.update(id, req, requestingAdminId);
+    }
+
+    /** Permanently removes a sub-admin; the service blocks self-deletion and any SUPER_ADMIN row. */
+    @DeleteMapping("/api/admin/admin-users/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID id, @AuthenticationPrincipal UUID requestingAdminId,
+            HttpServletRequest request) {
+        adminUserManagementService.delete(id, requestingAdminId, request);
     }
 }

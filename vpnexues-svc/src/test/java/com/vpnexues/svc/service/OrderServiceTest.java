@@ -43,7 +43,8 @@ class OrderServiceTest {
                     case "save" -> args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        service = new OrderService(repository, null, null, null, null, null, null, null);
+        // Order of args mirrors OrderService field order — 9th is DeliveryAvailabilityService.
+        service = new OrderService(repository, null, null, null, null, null, null, null, null);
     }
 
     @Test

@@ -93,6 +93,7 @@ public class SecurityConfig {
                                 "/api/products/**",
                                 "/api/cart/**",
                                 "/api/coupons/apply",
+                                "/api/delivery/**",
                                 "/api/contact-messages",
                                 "/api/order-feedback",
                                 "/api/b2b-enquiries",

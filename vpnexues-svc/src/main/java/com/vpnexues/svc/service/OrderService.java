@@ -16,6 +16,7 @@ import com.vpnexues.svc.entity.Payment;
 import com.vpnexues.svc.entity.PaymentStatus;
 import com.vpnexues.svc.entity.User;
 import com.vpnexues.svc.exception.BadRequestException;
+import com.vpnexues.svc.exception.DeliveryUnavailableException;
 import com.vpnexues.svc.exception.NotFoundException;
 import com.vpnexues.svc.repository.InventoryItemRepository;
 import com.vpnexues.svc.repository.OrderRepository;
@@ -72,6 +73,7 @@ public class OrderService {
     private final CartService cartService;
     private final CouponService couponService;
     private final AddressService addressService;
+    private final DeliveryAvailabilityService deliveryAvailabilityService;
 
     public OrderDto checkout(UUID userId, String countryCode, CheckoutRequest req) {
         // The country drives fee/threshold lookup AND is stamped on the order (routing to
@@ -120,6 +122,18 @@ public class OrderService {
             throw new BadRequestException("Invalid address ID format: " + req.addressId());
         }
         Address address = addressService.getEntityForUser(addressUuid, userId);
+
+        // Delivery-city gate — runs BEFORE anything is persisted (no order, no
+        // payment, no stock movement, no coupon side effects), so a
+        // non-deliverable city is never confirmed, charged or silently
+        // discarded; the UI shows "Coming Soon" for this 409 instead of
+        // "Order received". Coverage: serviceable_cities (V56).
+        if (!deliveryAvailabilityService.isServiceable(countryCode, address.getCity())) {
+            String city = address.getCity();
+            String where = city == null || city.isBlank() ? "your area" : city.trim();
+            throw new DeliveryUnavailableException(city == null ? "" : city,
+                    "Delivery is coming soon to " + where + " — VPNexues does not deliver there yet.");
+        }
 
         BigDecimal itemTotal = cart.itemTotal();
         BigDecimal discount = BigDecimal.ZERO;
