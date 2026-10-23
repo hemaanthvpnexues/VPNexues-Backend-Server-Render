@@ -207,3 +207,25 @@ ON CONFLICT (product_id, country_code) DO NOTHING;
 INSERT INTO product_price_overrides (product_id, country_code, price, old_price)
 SELECT id, 'IN', 49.00, 50.00 FROM products WHERE slug = 'cherry-tomatoes'
 ON CONFLICT (product_id, country_code) DO NOTHING;
+
+-- store_settings (single row): GET/PUT /api/admin/settings and StoreSettingsService
+-- expect exactly one row, and without it the endpoints 404 with
+-- "R__Seed_data.sql should have seeded exactly one". Idempotent: skipped when a
+-- row already exists, so admin edits made through the UI survive redeploys. The
+-- four box-pricing columns take the V5 defaults (10 / 0.15 / 10 / 0.12), which
+-- match the old hardcoded pricing constants exactly. Shipping and social URLs
+-- stay NULL until something consumes them.
+INSERT INTO store_settings (
+    website_name, tagline, default_currency, timezone, date_format, time_format,
+    website_email, website_phone, store_name, store_email, store_phone,
+    store_address, store_description, free_shipping_threshold,
+    standard_shipping_rate, express_shipping_rate, default_delivery_days,
+    facebook_url, instagram_url, twitter_url, youtube_url, whatsapp_url, telegram_url
+)
+SELECT
+    'VPNexues', 'Fresh groceries, delivered', 'SGD', 'Asia/Singapore', 'DD/MM/YYYY', '24-hour',
+    'hello@vpnexues.com', '+65 6000 0000', 'VPNexues Store', 'hello@vpnexues.com', '+65 6000 0000',
+    NULL, 'Fresh groceries delivered across Singapore.', NULL,
+    NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM store_settings);
