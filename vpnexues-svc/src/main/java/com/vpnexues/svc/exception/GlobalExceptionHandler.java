@@ -94,6 +94,19 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, message);
     }
 
+    // Any value that slips past bean validation and still overflows a column limit
+    // (or trips a unique/check constraint) surfaces from Postgres as a
+    // DataIntegrityViolationException. Unhandled, that becomes a raw 500 - which is
+    // what "saving a Karnataka address returns 500" looked like. It is a client-input
+    // problem, so it must read as a readable 400 in the standard envelope.
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrity(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        log.warn("Database constraint violated: {}", ex.getMessage());
+        return build(HttpStatus.BAD_REQUEST,
+                "One or more values are too long or invalid. Please shorten them and try again.");
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         log.error("Unhandled exception", ex);

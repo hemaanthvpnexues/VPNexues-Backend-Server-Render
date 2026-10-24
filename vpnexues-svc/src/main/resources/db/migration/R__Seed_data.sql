@@ -26,7 +26,7 @@ VALUES
   ('a0000000-0000-0000-0000-000000000009', 'Ridge Gourd', 'ridge-gourd', 'Vegetables', NULL, 2.6, 3.2, 'per pc', 'GPNX-047', '/images/products/Ridge Gourd.jpg', 19, TRUE),
   ('a0000000-0000-0000-0000-000000000010', 'Cauliflower', 'cauliflower', 'Vegetables', NULL, 3.9, 4.8, 'per pc', 'GPNX-013', '/images/products/Cauliflower.jpg', 19, TRUE),
   ('a0000000-0000-0000-0000-000000000011', 'Bell Peppers Mix', 'bell-peppers-mix', 'Vegetables', NULL, 4.5, 5.8, 'per 3 pcs', 'GPNX-006', '/images/products/Bell Peppers Mix.jpg', 22, TRUE),
-  ('a0000000-0000-0000-0000-000000000012', 'Curry Leaves', 'curry-leaves', 'Vegetables', NULL, 1.2, NULL, 'per bunch', 'GPNX-035', '/images/products/Curry Leaves.jpg', NULL, TRUE),
+  ('a0000000-0000-0000-0000-000000000012', 'Coriander', 'curry-leaves', 'Vegetables', NULL, 1.2, NULL, 'per bunch', 'GPNX-035', '/images/products/Coriander.jpg', NULL, TRUE),
   ('a0000000-0000-0000-0000-000000000013', 'Green Beans', 'green-beans', 'Vegetables', NULL, 2.8, 3.4, 'per 300g', 'GPNX-016', '/images/products/Green Beans.jpg', 18, TRUE),
   ('a0000000-0000-0000-0000-000000000014', 'Sweet Potato', 'sweet-potato', 'Vegetables', NULL, 3.1, 3.8, 'per kg', 'GPNX-015', '/images/products/Sweet Potato.jpg', 18, TRUE),
   ('a0000000-0000-0000-0000-000000000015', 'Pumpkin', 'pumpkin', 'Vegetables', NULL, 4.8, 6.0, 'per kg', 'GPNX-020', '/images/products/Pumpkin.jpg', 20, TRUE),
@@ -207,3 +207,25 @@ ON CONFLICT (product_id, country_code) DO NOTHING;
 INSERT INTO product_price_overrides (product_id, country_code, price, old_price)
 SELECT id, 'IN', 49.00, 50.00 FROM products WHERE slug = 'cherry-tomatoes'
 ON CONFLICT (product_id, country_code) DO NOTHING;
+
+-- store_settings (single row): GET/PUT /api/admin/settings and StoreSettingsService
+-- expect exactly one row, and without it the endpoints 404 with
+-- "R__Seed_data.sql should have seeded exactly one". Idempotent: skipped when a
+-- row already exists, so admin edits made through the UI survive redeploys. The
+-- four box-pricing columns take the V5 defaults (10 / 0.15 / 10 / 0.12), which
+-- match the old hardcoded pricing constants exactly. Shipping and social URLs
+-- stay NULL until something consumes them.
+INSERT INTO store_settings (
+    website_name, tagline, default_currency, timezone, date_format, time_format,
+    website_email, website_phone, store_name, store_email, store_phone,
+    store_address, store_description, free_shipping_threshold,
+    standard_shipping_rate, express_shipping_rate, default_delivery_days,
+    facebook_url, instagram_url, twitter_url, youtube_url, whatsapp_url, telegram_url
+)
+SELECT
+    'VPNexues', 'Fresh groceries, delivered', 'SGD', 'Asia/Singapore', 'DD/MM/YYYY', '24-hour',
+    'hello@vpnexues.com', '+65 6000 0000', 'VPNexues Store', 'hello@vpnexues.com', '+65 6000 0000',
+    NULL, 'Fresh groceries delivered across Singapore.', NULL,
+    NULL, NULL, NULL,
+    NULL, NULL, NULL, NULL, NULL, NULL
+WHERE NOT EXISTS (SELECT 1 FROM store_settings);

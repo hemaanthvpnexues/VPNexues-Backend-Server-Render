@@ -13,6 +13,7 @@ public record AddressDto(
         String city,
         String pincode,
         String state,
+        String country,
         boolean isDefault,
         Double lat,
         Double lng) {

@@ -128,7 +128,19 @@ public class OrderService {
         // non-deliverable city is never confirmed, charged or silently
         // discarded; the UI shows "Coming Soon" for this 409 instead of
         // "Order received". Coverage: serviceable_cities (V56).
-        if (!deliveryAvailabilityService.isServiceable(countryCode, address.getCity())) {
+        //
+        // The gate MUST key off the country the ADDRESS is in, not the header
+        // country selector. The selector is a UI preference (localStorage +
+        // GeoIP), and Singapore is seeded as a wildcard row ('*' = every city),
+        // so keying off it let a Tirupattur address through whenever the
+        // selector happened to sit on SG. A blank address country (legacy rows
+        // from before V59) falls back to the selected country, preserving the
+        // old behaviour for exactly those rows.
+        String addressCountry = address.getCountry();
+        String gateCountry = addressCountry == null || addressCountry.isBlank()
+                ? countryCode
+                : addressCountry.trim().toUpperCase(Locale.ROOT);
+        if (!deliveryAvailabilityService.isServiceable(gateCountry, address.getCity())) {
             String city = address.getCity();
             String where = city == null || city.isBlank() ? "your area" : city.trim();
             throw new DeliveryUnavailableException(city == null ? "" : city,

@@ -47,6 +47,19 @@ public class Address extends BaseEntity {
     @Column(nullable = false)
     private String state;
 
+    /**
+     * ISO-3166 alpha-2 country this address is IN ("IN", "SG", ...), populated
+     * by the reverse geocoder when the address is saved.
+     *
+     * <p>Backed by V59. Nullable so rows saved before that migration (and rows
+     * whose geocoder returned nothing) still save; checkout falls back to the
+     * selected country when this is blank. This column is what stops a
+     * Singapore-selected header from validating an Indian city against
+     * Singapore's wildcard coverage.
+     */
+    @Column(length = 2)
+    private String country;
+
     @Column(name = "is_default", nullable = false)
     private boolean isDefault = false;
 

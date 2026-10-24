@@ -51,7 +51,7 @@ UPDATE products SET image_url = '/images/products/Crunchy Coated Peanuts.jpg' WH
 UPDATE products SET image_url = '/images/products/Cucumber.jpg' WHERE slug = 'cucumber';
 UPDATE products SET image_url = '/images/products/Cumin Seeds.jpg' WHERE slug = 'cumin-seeds';
 UPDATE products SET image_url = '/images/products/Premium Fresh Curd.jpg' WHERE slug = 'curd';
-UPDATE products SET image_url = '/images/products/Curry Leaves.jpg' WHERE slug = 'curry-leaves';
+UPDATE products SET image_url = '/images/products/Coriander.jpg' WHERE slug = 'curry-leaves';
 UPDATE products SET image_url = '/images/products/Custard Apple.jpg' WHERE slug = 'custard-apple';
 UPDATE products SET image_url = '/images/products/Dates Medjool.jpg' WHERE slug = 'dates-medjool';
 UPDATE products SET image_url = '/images/products/Dragon Fruit.jpg' WHERE slug = 'dragon-fruit-white';

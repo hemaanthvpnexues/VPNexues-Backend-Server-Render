@@ -46,6 +46,10 @@ public class AddressService {
         address.setCity(req.city() != null ? req.city() : "");
         address.setPincode(req.pincode() != null ? req.pincode() : "");
         address.setState(req.state() != null ? req.state() : "");
+        // V59: remember which country this address is in, so checkout validates the
+        // city against the address's own country rather than the header selector
+        // (which was Singapore in the Tirupattur case and wildcard-passed it).
+        address.setCountry(normalizeCountry(req.country()));
         address.setDefault(req.isDefault());
         address.setLat(req.lat());
         address.setLng(req.lng());
@@ -56,6 +60,21 @@ public class AddressService {
         return addressRepository
                 .findByIdAndUserId(addressId, userId)
                 .orElseThrow(() -> new NotFoundException("Address not found: " + addressId));
+    }
+
+    /**
+     * Blank / over-long / junk country input collapses to null rather than
+     * tripping the VARCHAR(2) limit. Checkout treats null as "unknown" and falls
+     * back to the selected country, so a bad value degrades to the old behaviour
+     * instead of failing the save.
+     */
+    private String normalizeCountry(String country) {
+        if (country == null) return null;
+        String trimmed = country.trim().toUpperCase(java.util.Locale.ROOT);
+        if (trimmed.length() != 2 || !trimmed.chars().allMatch(c -> c >= 'A' && c <= 'Z')) {
+            return null;
+        }
+        return trimmed;
     }
 
     public void delete(UUID userId, UUID addressId) {
@@ -75,6 +94,7 @@ public class AddressService {
                 a.getCity(),
                 a.getPincode(),
                 a.getState(),
+                a.getCountry(),
                 a.isDefault(),
                 a.getLat(),
                 a.getLng());

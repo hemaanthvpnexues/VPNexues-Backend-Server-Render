@@ -245,28 +245,46 @@ public class JwtService {
                 return null;
             }
 
-            Instant issuedAt = claimSet.getIssueTime() != null ? claimSet.getIssueTime().toInstant() : Instant.now();
-            Instant expiresAt = claimSet.getExpirationTime() != null ? claimSet.getExpirationTime().toInstant() : Instant.now().plusSeconds(3600);
-
-            String jwt = Jwts.builder()
-                    .subject(firebaseUid)
-                    .claim("type", TOKEN_TYPE_CUSTOMER)
-                    .claim("firebaseUid", firebaseUid)
-                    .issuedAt(Date.from(issuedAt))
-                    .expiration(Date.from(expiresAt))
-                    .signWith(signingKey)
-                    .compact();
-            return Jwts.parser()
-                    .verifyWith((javax.crypto.SecretKey) signingKey)
-                    .build()
-                    .parseSignedClaims(jwt)
-                    .getPayload();
+            return mintFirebaseSession(claimSet);
         } catch (Exception e) {
             Throwable cause = e.getCause() != null ? e.getCause() : e;
             log.warn("Firebase token verification failed: {}: {}",
                     cause.getClass().getSimpleName(), cause.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Re-mints a verified Firebase claim set as this backend's internal customer
+     * token (same UID, HMAC-signed with our secret). Package-private for tests.
+     *
+     * <p>The verified {@code phone_number} claim is forwarded. AuthController's
+     * OTP-verify reads it back ({@code claims.get("phone_number")}) to bind the
+     * phone the user typed to the phone Google verified — dropping it here made
+     * EVERY Firebase OTP login fail with "Phone number does not match the
+     * verified Firebase session" (regression found 23-Oct-2026).
+     */
+    Claims mintFirebaseSession(JWTClaimsSet claimSet) {
+        String firebaseUid = claimSet.getSubject();
+        Instant issuedAt = claimSet.getIssueTime() != null ? claimSet.getIssueTime().toInstant() : Instant.now();
+        Instant expiresAt = claimSet.getExpirationTime() != null ? claimSet.getExpirationTime().toInstant() : Instant.now().plusSeconds(3600);
+
+        Object phone = claimSet.getClaim("phone_number");
+        var builder = Jwts.builder()
+                .subject(firebaseUid)
+                .claim("type", TOKEN_TYPE_CUSTOMER)
+                .claim("firebaseUid", firebaseUid)
+                .issuedAt(Date.from(issuedAt))
+                .expiration(Date.from(expiresAt));
+        if (phone != null) {
+            builder.claim("phone_number", phone.toString());
+        }
+        String jwt = builder.signWith(signingKey).compact();
+        return Jwts.parser()
+                .verifyWith((javax.crypto.SecretKey) signingKey)
+                .build()
+                .parseSignedClaims(jwt)
+                .getPayload();
     }
 
     /**
